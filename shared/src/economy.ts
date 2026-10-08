@@ -22,6 +22,8 @@ export interface Quest {
 }
 export type QuestKind = 'play' | 'win' | 'ko' | 'dmg' | 'smashko' | 'combo' | 'online' | 'winwith';
 
+export interface HistoryEntry { t: number; mode: string; won: boolean; fighter: string; kos: number; falls: number; dmg: number; place: number; players: number; coins: number; mmr?: number }
+
 export interface Profile {
   id: string;
   name: string;
@@ -37,7 +39,11 @@ export interface Profile {
   noAds: boolean;
   payer: boolean;
   rank: { mmr: number; peak: number; wins: number; losses: number; season: number; streak: number };
-  stats: { matches: number; wins: number; kos: number; falls: number; dmg: number; online: number };
+  stats: { matches: number; wins: number; kos: number; falls: number; dmg: number; online: number; bestCombo: number; flawless: number };
+  fstats: Record<string, { m: number; w: number }>;
+  history: HistoryEntry[];
+  ach: string[];          // claimed achievement ids
+  tutorial: string[];     // completed tutorials / seen feature intros
   daily: { day: string; quests: Quest[]; firstWin: boolean; rerolls: number; ads: number; crateAt: number };
   login: { lastDay: string; streak: number; claimed: boolean };
   pass: { season: number; xp: number; premium: boolean; free: number[]; prem: number[] };
@@ -163,7 +169,8 @@ export function newProfile(id: string, name: string, now = Date.now()): Profile 
     selFighter: STARTER_FIGHTERS[0], selSkin: {},
     noAds: false, payer: false,
     rank: { mmr: 1000, peak: 1000, wins: 0, losses: 0, season: currentSeason(now), streak: 0 },
-    stats: { matches: 0, wins: 0, kos: 0, falls: 0, dmg: 0, online: 0 },
+    stats: { matches: 0, wins: 0, kos: 0, falls: 0, dmg: 0, online: 0, bestCombo: 0, flawless: 0 },
+    fstats: {}, history: [], ach: [], tutorial: [],
     daily: { day: '', quests: [], firstWin: false, rerolls: 1, ads: 0, crateAt: 0 },
     login: { lastDay: '', streak: 0, claimed: false },
     pass: { season: currentSeason(now), xp: 0, premium: false, free: [], prem: [] },
@@ -189,7 +196,15 @@ export function seasonEndsAt(now: number) {
 }
 
 /** Rotates daily quests, login streak and season. Call on every session/profile load. */
+/** Adds fields introduced after a profile was created (old saves / server records). */
+export function migrateProfile(p: Profile): Profile {
+  p.stats.bestCombo ??= 0; p.stats.flawless ??= 0;
+  p.fstats ??= {}; p.history ??= []; p.ach ??= []; p.tutorial ??= [];
+  return p;
+}
+
 export function refreshDaily(p: Profile, now = Date.now(), rand: () => number = Math.random) {
+  migrateProfile(p);
   const today = dayKey(now);
   if (p.daily.day !== today) {
     p.daily = { day: today, quests: rollQuests(p, rand), firstWin: false, rerolls: 1, ads: 0, crateAt: p.daily.crateAt };
@@ -417,6 +432,12 @@ export function applyMatch(p: Profile, m: MatchSummary, now = Date.now()): Rewar
   if (m.won) p.stats.wins++;
   p.stats.kos += m.kos; p.stats.falls += m.falls; p.stats.dmg += Math.round(m.dmg);
   if (online) p.stats.online++;
+  p.stats.bestCombo = Math.max(p.stats.bestCombo, m.maxCombo);
+  if (m.won && m.falls === 0) p.stats.flawless++;
+  const fs = (p.fstats[m.fighter] ??= { m: 0, w: 0 });
+  fs.m++; if (m.won) fs.w++;
+  p.history.unshift({ t: now, mode: m.mode, won: m.won, fighter: m.fighter, kos: m.kos, falls: m.falls, dmg: Math.round(m.dmg), place: m.placement, players: m.players, coins });
+  if (p.history.length > 25) p.history.length = 25;
 
   const questsDone: string[] = [];
   for (const q of p.daily.quests) {
@@ -455,3 +476,78 @@ export function skinOwned(p: Profile, fighterId: string, idx: number) {
   const f = getFighter(fighterId);
   return idx === 0 || p.skins.includes(f.skins[idx]?.id);
 }
+
+// ---- achievements ----------------------------------------------------------------------------
+export interface Achievement {
+  id: string; name: string; nameFa: string; desc: string; descFa: string;
+  goal: number; progress: (p: Profile) => number; reward: { coins?: number; gems?: number };
+}
+const winsWith = (p: Profile) => FIGHTERS.filter((f) => (p.fstats[f.id]?.w ?? 0) > 0).length;
+export const ACHIEVEMENTS: Achievement[] = [
+  { id: 'first_win', name: 'First Blood', nameFa: 'اولین پیروزی', desc: 'Win a match', descFa: 'یک مسابقه ببر', goal: 1, progress: (p) => p.stats.wins, reward: { coins: 200 } },
+  { id: 'wins_10', name: 'Contender', nameFa: 'مدعی', desc: 'Win 10 matches', descFa: '۱۰ مسابقه ببر', goal: 10, progress: (p) => p.stats.wins, reward: { coins: 500 } },
+  { id: 'wins_50', name: 'Veteran', nameFa: 'کهنه‌کار', desc: 'Win 50 matches', descFa: '۵۰ مسابقه ببر', goal: 50, progress: (p) => p.stats.wins, reward: { coins: 1000, gems: 25 } },
+  { id: 'kos_50', name: 'Heavy Hitter', nameFa: 'مشت سنگین', desc: 'Score 50 KOs', descFa: '۵۰ ناک‌اوت بزن', goal: 50, progress: (p) => p.stats.kos, reward: { coins: 500 } },
+  { id: 'kos_250', name: 'Ring Out King', nameFa: 'سلطان ناک‌اوت', desc: 'Score 250 KOs', descFa: '۲۵۰ ناک‌اوت بزن', goal: 250, progress: (p) => p.stats.kos, reward: { coins: 1500, gems: 40 } },
+  { id: 'matches_25', name: 'Regular', nameFa: 'پای ثابت', desc: 'Play 25 matches', descFa: '۲۵ مسابقه بازی کن', goal: 25, progress: (p) => p.stats.matches, reward: { coins: 400 } },
+  { id: 'matches_100', name: 'Dedicated', nameFa: 'سخت‌کوش', desc: 'Play 100 matches', descFa: '۱۰۰ مسابقه بازی کن', goal: 100, progress: (p) => p.stats.matches, reward: { coins: 1200, gems: 30 } },
+  { id: 'combo_5', name: 'Combo Artist', nameFa: 'هنرمند کمبو', desc: 'Land a 5-hit combo', descFa: 'یک کمبوی ۵ ضربه‌ای بزن', goal: 5, progress: (p) => p.stats.bestCombo, reward: { coins: 400, gems: 10 } },
+  { id: 'flawless_3', name: 'Untouchable', nameFa: 'دست‌نیافتنی', desc: 'Win 3 matches without falling', descFa: '۳ برد بدون سقوط', goal: 3, progress: (p) => p.stats.flawless, reward: { coins: 600, gems: 15 } },
+  { id: 'online_10', name: 'Netplayer', nameFa: 'بازیکن آنلاین', desc: 'Play 10 online matches', descFa: '۱۰ مسابقه آنلاین', goal: 10, progress: (p) => p.stats.online, reward: { coins: 600 } },
+  { id: 'gold_rank', name: 'Golden', nameFa: 'طلایی', desc: 'Reach Gold rank', descFa: 'به رتبه طلا برس', goal: 1200, progress: (p) => p.rank.peak, reward: { coins: 800, gems: 30 } },
+  { id: 'diamond_rank', name: 'Diamond Mind', nameFa: 'ذهن الماسی', desc: 'Reach Diamond rank', descFa: 'به رتبه الماس برس', goal: 1600, progress: (p) => p.rank.peak, reward: { coins: 2000, gems: 80 } },
+  { id: 'level_10', name: 'Rising Star', nameFa: 'ستاره نوظهور', desc: 'Reach level 10', descFa: 'به سطح ۱۰ برس', goal: 10, progress: (p) => p.level, reward: { coins: 700, gems: 20 } },
+  { id: 'all_rounder', name: 'Jack of All Trades', nameFa: 'همه‌فن‌حریف', desc: 'Win with every fighter', descFa: 'با همه مبارزها ببر', goal: FIGHTERS.length, progress: winsWith, reward: { coins: 1500, gems: 50 } },
+  { id: 'collector', name: 'Collector', nameFa: 'کلکسیونر', desc: 'Own every fighter', descFa: 'همه مبارزها را داشته باش', goal: FIGHTERS.length, progress: (p) => p.fighters.length, reward: { gems: 60 } },
+];
+
+export function achievementState(p: Profile, a: Achievement) {
+  const value = Math.min(a.goal, a.progress(p));
+  return { value, done: value >= a.goal, claimed: p.ach.includes(a.id) };
+}
+export function claimAchievement(p: Profile, id: string): Achievement | null {
+  migrateProfile(p);
+  const a = ACHIEVEMENTS.find((x) => x.id === id);
+  if (!a) return null;
+  const st = achievementState(p, a);
+  if (!st.done || st.claimed) return null;
+  p.ach.push(id);
+  p.coins += a.reward.coins ?? 0; p.gems += a.reward.gems ?? 0;
+  return a;
+}
+export function claimableAchievements(p: Profile) {
+  migrateProfile(p);
+  return ACHIEVEMENTS.filter((a) => { const s = achievementState(p, a); return s.done && !s.claimed; }).length;
+}
+
+// ---- tutorials & feature unlocks --------------------------------------------------------------
+export const TUTORIAL_REWARD = { coins: 300, gems: 20, xp: 200 };
+/** Marks a tutorial done; the basic tutorial pays a one-time reward. */
+export function completeTutorial(p: Profile, id: string): { coins: number; gems: number; xp: number } | null {
+  migrateProfile(p);
+  if (!/^[a-z0-9_:-]{1,40}$/.test(id) || p.tutorial.includes(id)) return null;
+  p.tutorial.push(id);
+  if (p.tutorial.length > 80) p.tutorial.splice(0, p.tutorial.length - 80);
+  if (id !== 'basic') return null;
+  p.coins += TUTORIAL_REWARD.coins; p.gems += TUTORIAL_REWARD.gems;
+  addXp(p, TUTORIAL_REWARD.xp);
+  return TUTORIAL_REWARD;
+}
+
+export type FeatureId = 'quests' | 'shop' | 'achievements' | 'pass' | 'friends' | 'ranked' | 'crates';
+/** Progressive onboarding: features open up as the player plays, each with its own guided intro. */
+export const FEATURES: { id: FeatureId; level?: number; matches?: number }[] = [
+  { id: 'quests', matches: 1 },
+  { id: 'shop', matches: 1 },
+  { id: 'achievements', matches: 2 },
+  { id: 'pass', matches: 3 },
+  { id: 'crates', matches: 3 },
+  { id: 'friends', level: 2 },
+  { id: 'ranked', level: 3 },
+];
+export function featureUnlocked(p: Profile, id: FeatureId) {
+  const f = FEATURES.find((x) => x.id === id);
+  if (!f) return true;
+  return p.level >= (f.level ?? 0) && p.stats.matches >= (f.matches ?? 0);
+}
+export function featureRequirement(id: FeatureId) { return FEATURES.find((x) => x.id === id)!; }

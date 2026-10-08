@@ -3,6 +3,7 @@ import { backend } from '../services/backend.ts';
 import { audio } from '../game/audio.ts';
 import { previewFighter } from '../game/art.ts';
 import { t, num, isFa, loc } from '../i18n.ts';
+import { svg } from './icons.ts';
 
 export type Child = Node | string | null | undefined | false | Child[];
 
@@ -62,9 +63,9 @@ export function topBar(opts: { back?: () => void; title?: string } = {}) {
   const coins = h('span', { class: 'cur' }, icon('coin'), num(p.coins));
   const gems = h('span', { class: 'cur' }, icon('gem'), num(p.gems));
   const bar = h('div', { class: opts.title ? 'topbar titled' : 'topbar' },
-    opts.back ? h('button', { class: 'btn icon back', onclick: opts.back }, isFa() ? '→' : '←') : null,
-    opts.title ? h('h2', { class: 'title' }, opts.title) : h('div', { class: 'player-chip' },
-      h('div', { class: 'lvl' }, num(p.level)),
+    opts.back ? h('button', { class: 'btn icon back', onclick: opts.back }, svg(isFa() ? 'chevron' : 'back', 20)) : null,
+    opts.title ? h('h2', { class: 'title' }, opts.title) : h('div', { class: 'player-chip', onclick: () => import('./meta.ts').then((m) => show(m.profileScreen)) },
+      h('div', { class: 'lvl', style: { '--xp': `${Math.round((p.xp / xpNeed) * 100)}%` } as any }, h('span', {}, num(p.level))),
       h('div', { class: 'pinfo' },
         h('div', { class: 'pname' }, p.name, ' ', h('span', { class: 'tier', style: { color: tier.tier.color } }, isFa() ? tier.tier.nameFa : tier.tier.name)),
         h('div', { class: 'xpbar' }, h('div', { style: { width: `${(p.xp / xpNeed) * 100}%` } })),
@@ -81,6 +82,12 @@ export function topBar(opts: { back?: () => void; title?: string } = {}) {
   return bar;
 }
 
+/** Small "locked" helper: requirement text for a feature that isn't open yet. */
+export function lockText(req: { level?: number; matches?: number }) {
+  if (req.level) return `${t('level')} ${num(req.level)}`;
+  return `${num(req.matches ?? 0)} ${t('matchesShort')}`;
+}
+
 export function toast(msg: string, kind: 'ok' | 'err' | 'info' = 'info') {
   const el = h('div', { class: `toast ${kind}` }, msg);
   document.body.appendChild(el);
@@ -92,7 +99,7 @@ export function modal(content: Child, opts: { onClose?: () => void; closable?: b
   const close = () => { wrap.remove(); opts.onClose?.(); };
   const wrap = h('div', { class: 'modal-wrap', onclick: (e: Event) => { if (e.target === wrap && opts.closable !== false) close(); } },
     h('div', { class: `modal ${opts.cls ?? ''}` },
-      opts.closable !== false ? h('button', { class: 'btn icon modal-x', onclick: close }, '✕') : null,
+      opts.closable !== false ? h('button', { class: 'btn icon modal-x', onclick: close }, svg('close', 18)) : null,
       content,
     ),
   );

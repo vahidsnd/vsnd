@@ -1,6 +1,6 @@
 import type http from 'node:http';
 import {
-  applyMatch, buyItem, claimFreeCrate, claimLogin, claimPass, claimQuest, doubleLastReward, getFighter,
+  applyMatch, buyItem, claimAchievement, completeTutorial, claimFreeCrate, claimLogin, claimPass, claimQuest, doubleLastReward, getFighter,
   grantIap, IAP_PRODUCTS, MAX_REWARDED_ADS_PER_DAY, rerollQuest, dayKey, type MatchSummary,
 } from '@nb/shared';
 import { config } from './config.ts';
@@ -125,6 +125,18 @@ const routes: Record<string, Handler> = {
       fighter: String(s.fighter), durationSec: clamp(s.durationSec, 0, 900),
     };
     const reward = applyMatch(p, clean);
+    markDirty();
+    return { reward, profile: p };
+  },
+  'POST /api/ach/claim': (b, u) => {
+    const p = need(u).profile;
+    const a = claimAchievement(p, String(b.id));
+    markDirty();
+    return { achievement: a ? { id: a.id, reward: a.reward } : null, profile: p };
+  },
+  'POST /api/tutorial/done': (b, u) => {
+    const p = need(u).profile;
+    const reward = completeTutorial(p, String(b.id));
     markDirty();
     return { reward, profile: p };
   },

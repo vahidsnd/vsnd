@@ -359,16 +359,17 @@ function groundActions(state: GameState, f: FighterState, def: FighterDef): bool
   if (pressed(f, Btn.SPECIAL)) return special(state, f, dx, dy);
   const strong = pressed(f, Btn.STRONG);
   if (pressed(f, Btn.ATTACK) || strong) {
-    const smash = strong || held(f, Btn.STRONG) || (f.tapT > 0 && (f.tapX !== 0 || f.tapY !== 0));
+    // smash attacks come only from the dedicated smash input (button / right stick): reliable on touch & keys
+    const smash = strong || held(f, Btn.STRONG);
     if (smash) {
-      const sy = f.tapT > 0 && f.tapY !== 0 ? f.tapY : dy;
-      const sx = f.tapT > 0 && f.tapX !== 0 ? f.tapX : dx;
+      const sy = dy, sx = dx;
       if (sy < 0) startMove(state, f, 'usmash');
       else if (sy > 0) startMove(state, f, 'dsmash');
       else { if (sx !== 0) f.facing = sx as 1 | -1; startMove(state, f, 'fsmash'); }
       return true;
     }
-    if (f.action === 'run') { startMove(state, f, 'dash'); return true; }
+    // a real dash (not the first frames of a direction press) turns attack into a dash attack
+    if (f.action === 'run' && f.af > 10 && Math.abs(f.vx) > getFighter(f.charId).stats.walk + 0.5) { startMove(state, f, 'dash'); return true; }
     if (dy < 0) startMove(state, f, 'utilt');
     else if (dy > 0) startMove(state, f, 'dtilt');
     else if (dx !== 0) { f.facing = dx as 1 | -1; startMove(state, f, 'ftilt'); }

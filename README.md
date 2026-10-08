@@ -1,6 +1,6 @@
 # Neon Brawl — نئون براول
 
-Online 2D platform fighter (Smash-style, **portrait**) for **Myket** and **Google Play**, with ranked matchmaking, a full economy, AdMob/Tapsell ads and in-app purchases.
+Online 2D platform fighter (Smash-style, **landscape**) for **Myket** and **Google Play**, with ranked matchmaking, a full economy, AdMob/Tapsell ads and in-app purchases.
 Full game design document (Persian): **[docs/GDD.md](docs/GDD.md)** · Handoff / release checklist: **[docs/HANDOFF.md](docs/HANDOFF.md)**.
 
 ```

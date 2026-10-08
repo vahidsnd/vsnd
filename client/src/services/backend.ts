@@ -1,5 +1,5 @@
 import {
-  applyMatch, buyItem, claimFreeCrate, claimLogin, claimPass, claimQuest, doubleLastReward, getFighter, grantIap,
+  applyMatch, buyItem, claimAchievement, completeTutorial, migrateProfile, claimFreeCrate, claimLogin, claimPass, claimQuest, doubleLastReward, getFighter, grantIap,
   newProfile, refreshDaily, rerollQuest,
   type BuyResult, type CrateResult, type MatchSummary, type PassReward, type Profile, type Quest, type RewardResult,
 } from '@nb/shared';
@@ -19,7 +19,7 @@ class Backend {
   private listeners = new Set<Listener>();
 
   onChange(fn: Listener) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
-  private set(p: Profile) { this.profile = p; if (!this.online) store.set('profile', p); this.listeners.forEach((l) => l(p)); }
+  private set(p: Profile) { migrateProfile(p); this.profile = p; if (!this.online) store.set('profile', p); this.listeners.forEach((l) => l(p)); }
 
   async init(): Promise<void> {
     try {
@@ -102,8 +102,18 @@ class Backend {
   reportCpu(summary: MatchSummary) {
     return this.run('/api/match/offline', { summary }, (p) => applyMatch(p, summary), (j) => j.reward as RewardResult | null);
   }
+  claimAchievement(id: string) {
+    return this.run('/api/ach/claim', { id }, (p) => { const a = claimAchievement(p, id); return a ? { id: a.id, reward: a.reward } : null; }, (j) => j.achievement as { id: string; reward: { coins?: number; gems?: number } } | null);
+  }
+  /** marks a tutorial / feature intro as seen; the basic tutorial pays once */
+  completeTutorial(id: string) {
+    if (this.profile.tutorial?.includes(id)) return Promise.resolve(null);
+    return this.run('/api/tutorial/done', { id }, (p) => completeTutorial(p, id), (j) => j.reward as { coins: number; gems: number; xp: number } | null)
+      .catch(() => { completeTutorial(this.profile, id); return null; });
+  }
+  seen(id: string) { return !!this.profile.tutorial?.includes(id); }
   /** apply a profile pushed by the match server */
-  applyServerProfile(p: Profile) { this.set(p); }
+  applyServerProfile(p: Profile) { this.set(migrateProfile(p)); }
 
   async leaderboard(): Promise<{ pos: number; name: string; mmr: number; wins: number; losses: number; fighter: string; level: number; id: string }[]> {
     if (!this.online) return [];

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createGame, step, botInput, createBrain, FIGHTERS, STAGES, Btn, cloneState,
   encodeFighters, applyFighters, newProfile, applyMatch, buyItem, grantIap, claimPass, passTier, PASS_XP_PER_TIER,
+  completeTutorial, claimAchievement, featureUnlocked, migrateProfile, type Profile,
   type MatchConfig,
 } from '../src/index.ts';
 
@@ -96,4 +97,28 @@ test('economy: rewards, shop, iap, pass', () => {
   grantIap(p, 'season_pass');
   const pr = claimPass(p, 5, true);
   assert.ok(pr?.reward.skin);
+});
+
+test('tutorial reward is paid once, achievements and unlocks progress', () => {
+  const p = newProfile('u2', 'T');
+  assert.equal(featureUnlocked(p, 'shop'), false);
+  const coins = p.coins;
+  assert.ok(completeTutorial(p, 'basic'));
+  assert.equal(completeTutorial(p, 'basic'), null);
+  assert.equal(p.coins, coins + 300 + 170); // tutorial reward + level-2 level-up bonus
+  assert.equal(p.level, 2);
+  assert.equal(featureUnlocked(p, 'friends'), true);
+  assert.equal(claimAchievement(p, 'first_win'), null);
+  applyMatch(p, { matchId: 'm', mode: 'cpu', won: true, placement: 1, players: 2, kos: 3, falls: 0, dmg: 200, smashKOs: 1, maxCombo: 5, fighter: 'blaze', durationSec: 90 });
+  assert.equal(featureUnlocked(p, 'shop'), true);
+  assert.ok(claimAchievement(p, 'first_win'));
+  assert.ok(claimAchievement(p, 'combo_5'));
+  assert.equal(claimAchievement(p, 'first_win'), null);
+  assert.equal(p.history.length, 1);
+  assert.equal(p.fstats.blaze.w, 1);
+  // old saves get the new fields
+  const old = JSON.parse(JSON.stringify(p)) as Profile;
+  delete (old as any).ach; delete (old as any).history; delete (old as any).fstats;
+  migrateProfile(old);
+  assert.deepEqual(old.ach, []);
 });

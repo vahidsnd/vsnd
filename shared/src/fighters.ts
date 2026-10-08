@@ -71,7 +71,7 @@ export const FIGHTERS: FighterDef[] = [
     stats: { weight: 95, walk: 3.4, run: 7.6, airSpeed: 5.4, airAccel: 0.45, gravity: 0.62, fall: 11, fastFall: 16, jump: 15.5, shortHop: 9.5, airJump: 14.5, airJumps: 1, traction: 0.55, w: 44, h: 72 },
     look: { body: 'fox' },
     skins: [
-      { id: 'blaze0', name: 'Classic', nameFa: 'کلاسیک', main: '#ff6a2b', second: '#ffe2b8', glow: '#ffd23f' },
+      { id: 'blaze0', name: 'Classic', nameFa: 'کلاسیک', main: '#e2582c', second: '#f1dcc0', glow: '#ffbf47' },
       { id: 'blaze1', name: 'Frost', nameFa: 'یخی', main: '#4fc3ff', second: '#e8fbff', glow: '#9af0ff' },
       { id: 'blaze2', name: 'Shadow', nameFa: 'سایه', main: '#3a2d5c', second: '#b9a7ff', glow: '#ff3df5' },
       { id: 'blaze3', name: 'Gold', nameFa: 'طلایی', main: '#e8b923', second: '#fff7d1', glow: '#ffffff' },
@@ -124,9 +124,9 @@ export const FIGHTERS: FighterDef[] = [
     stats: { weight: 76, walk: 3.6, run: 7.2, airSpeed: 6.2, airAccel: 0.6, gravity: 0.5, fall: 9, fastFall: 14, jump: 14.5, shortHop: 9, airJump: 12, airJumps: 4, traction: 0.5, w: 40, h: 66 },
     look: { body: 'bird' },
     skins: [
-      { id: 'zephyr0', name: 'Breeze', nameFa: 'نسیم', main: '#38d9a9', second: '#fff4c2', glow: '#c4fff0' },
+      { id: 'zephyr0', name: 'Breeze', nameFa: 'نسیم', main: '#2aa894', second: '#e7efdc', glow: '#93f0df' },
       { id: 'zephyr1', name: 'Storm', nameFa: 'طوفان', main: '#5b5fef', second: '#d6d8ff', glow: '#f7ff63' },
-      { id: 'zephyr2', name: 'Sunset', nameFa: 'غروب', main: '#ff7aa2', second: '#ffe3b3', glow: '#ffb86b' },
+      { id: 'zephyr2', name: 'Sunset', nameFa: 'غروب', main: '#d9637f', second: '#f2dcb3', glow: '#ffb86b' },
       { id: 'zephyr3', name: 'Phoenix', nameFa: 'ققنوس', main: '#ff3d2e', second: '#ffd23f', glow: '#ff8a00' },
     ],
     price: { coins: 2500, gems: 250 },
@@ -146,7 +146,7 @@ export const FIGHTERS: FighterDef[] = [
     stats: { weight: 90, walk: 3.1, run: 6.8, airSpeed: 5, airAccel: 0.4, gravity: 0.58, fall: 10.5, fastFall: 15, jump: 15, shortHop: 9.2, airJump: 14, airJumps: 1, traction: 0.6, w: 46, h: 74 },
     look: { body: 'robot' },
     skins: [
-      { id: 'volt0', name: 'Prototype', nameFa: 'نمونه اولیه', main: '#ffd23f', second: '#283044', glow: '#38f2ff' },
+      { id: 'volt0', name: 'Prototype', nameFa: 'نمونه اولیه', main: '#e3b02c', second: '#262c3c', glow: '#3fe0ff' },
       { id: 'volt1', name: 'Arctic', nameFa: 'قطبی', main: '#e6f0ff', second: '#2b4a7a', glow: '#62b6ff' },
       { id: 'volt2', name: 'Virus', nameFa: 'ویروس', main: '#7cff4f', second: '#1c1c1c', glow: '#ff2fd0' },
       { id: 'volt3', name: 'Royal', nameFa: 'سلطنتی', main: '#6a2fd6', second: '#ffd700', glow: '#ffd700' },
@@ -169,7 +169,7 @@ export const FIGHTERS: FighterDef[] = [
     look: { body: 'ninja' },
     skins: [
       { id: 'kira0', name: 'Midnight', nameFa: 'نیمه‌شب', main: '#2d2a4a', second: '#ff4f8b', glow: '#f6f1e0' },
-      { id: 'kira1', name: 'Sakura', nameFa: 'شکوفه', main: '#ffb3d1', second: '#3d1f33', glow: '#ffffff' },
+      { id: 'kira1', name: 'Sakura', nameFa: 'شکوفه', main: '#e7a1bd', second: '#3d1f33', glow: '#ffffff' },
       { id: 'kira2', name: 'Ronin', nameFa: 'رونین', main: '#8a1c1c', second: '#f2d398', glow: '#ffcf5c' },
       { id: 'kira3', name: 'Ghost', nameFa: 'شبح', main: '#dfe8ff', second: '#5a5f7a', glow: '#38f2ff' },
     ],
@@ -193,9 +193,9 @@ export const FIGHTERS: FighterDef[] = [
     stats: { weight: 68, walk: 3.8, run: 8.4, airSpeed: 5.6, airAccel: 0.55, gravity: 0.56, fall: 10, fastFall: 15, jump: 15, shortHop: 9.2, airJump: 14, airJumps: 2, traction: 0.5, w: 34, h: 52 },
     look: { body: 'imp' },
     skins: [
-      { id: 'pip0', name: 'Mischief', nameFa: 'شیطون', main: '#a05cff', second: '#ffe066', glow: '#ff7af6' },
+      { id: 'pip0', name: 'Mischief', nameFa: 'شیطون', main: '#7046d6', second: '#efc54a', glow: '#ff5d9e' },
       { id: 'pip1', name: 'Lime', nameFa: 'لیمو', main: '#9be15d', second: '#1f3d2b', glow: '#e6ff5c' },
-      { id: 'pip2', name: 'Candy', nameFa: 'آبنباتی', main: '#ff6fae', second: '#7fe3ff', glow: '#ffffff' },
+      { id: 'pip2', name: 'Neon', nameFa: 'نئون', main: '#d9467f', second: '#54d6f0', glow: '#ffffff' },
       { id: 'pip3', name: 'Void', nameFa: 'خلأ', main: '#141421', second: '#ff2e63', glow: '#ff2e63' },
     ],
     price: { coins: 4000, gems: 400 },

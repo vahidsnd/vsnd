@@ -26,6 +26,7 @@ export const store = {
 };
 
 export async function haptic(kind: 'light' | 'heavy' = 'light') {
+  try { const pr = JSON.parse(localStorage.getItem('nb.prefs') || '{}'); if (pr.vibration === false) return; } catch { /* default on */ }
   if (!isNative) { if (navigator.vibrate) navigator.vibrate(kind === 'heavy' ? 30 : 10); return; }
   try {
     const { Haptics, ImpactStyle } = await import('@capacitor/haptics');

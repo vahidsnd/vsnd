@@ -1,10 +1,11 @@
 import { COUNTDOWN, getFighter, getStage, platformPos, TICK_RATE, type GameEvent, type GameState, type StageDef } from '@nb/shared';
 import { drawFighter, drawProjectile, INK, PLAYER_COLORS, previewFighter, shade, star } from './art.ts';
 import { t } from '../i18n.ts';
+import { prefs } from '../services/prefs.ts';
 
 interface Particle {
   x: number; y: number; vx: number; vy: number; life: number; max: number;
-  color: string; size: number; kind: 'spark' | 'dust' | 'ring' | 'star' | 'beam' | 'text' | 'smoke'; rot?: number; text?: string; g?: number;
+  color: string; size: number; kind: 'spark' | 'dust' | 'ring' | 'star' | 'beam' | 'text' | 'smoke' | 'slash' | 'num'; rot?: number; text?: string; g?: number;
 }
 
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
@@ -40,6 +41,8 @@ export class Renderer {
   offsets: { x: number; y: number }[] = [];
   trialSlots = new Set<number>();
   hitstop = 0;
+  showHitboxes = false;
+  private get lowFx() { return prefs.quality === 'low' || this.maxDpr <= 1.05; }
 
   constructor(public canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d')!;
@@ -47,7 +50,7 @@ export class Renderer {
   }
 
   /** render-resolution cap; lowered automatically when frames are slow */
-  private maxDpr = Math.min(2, window.devicePixelRatio || 1);
+  private maxDpr = prefs.quality === 'low' ? 1 : Math.min(prefs.quality === 'high' ? 2 : 1.5, window.devicePixelRatio || 1);
   private slowFrames = 0;
   private fastFrames = 0;
   private layerCache = new Map<string, HTMLCanvasElement>();
@@ -64,6 +67,7 @@ export class Renderer {
 
   /** Feed real frame times; drops render resolution on slow devices, restores it when there is headroom. */
   noteFrame(ms: number) {
+    if (prefs.quality !== 'auto') return;
     if (ms > 22) { this.slowFrames++; this.fastFrames = 0; } else if (ms < 15) { this.fastFrames++; this.slowFrames = Math.max(0, this.slowFrames - 1); }
     if (this.slowFrames > 45 && this.maxDpr > 1) {
       this.maxDpr = Math.max(1, this.maxDpr - 0.35); this.slowFrames = 0; this.resize();
@@ -84,46 +88,48 @@ export class Renderer {
       sfx(e);
       switch (e.t) {
         case 'hit': {
-          const n = Math.min(26, 6 + Math.floor(e.kb / 8));
           const color = PLAYER_COLORS[e.attacker] ?? '#fff';
+          const n = Math.min(this.lowFx ? 6 : 12, 3 + Math.floor(e.kb / 14));
           for (let i = 0; i < n; i++) {
-            const a = Math.random() * Math.PI * 2, s = rnd(3, 6 + e.kb / 15);
-            this.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0, max: rnd(12, 24), color: i % 3 ? '#fff6c2' : color, size: rnd(2, 4), kind: 'spark' });
+            const a = Math.random() * Math.PI * 2, sp = rnd(4, 7 + e.kb / 18);
+            this.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: rnd(10, 18), color: i % 2 ? '#ffffff' : color, size: rnd(1.6, 2.8), kind: 'spark' });
           }
-          this.particles.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0, max: 14, color, size: 10 + e.kb / 4, kind: 'ring' });
-          if (e.kb > 90) this.particles.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0, max: 18, color: '#fff', size: 22, kind: 'star', rot: Math.random() });
+          this.particles.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0, max: 12, color, size: 12 + e.kb / 5, kind: 'ring' });
+          if (e.kb > 80) this.particles.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0, max: 10, color: '#ffffff', size: 30 + e.kb / 4, kind: 'slash', rot: Math.random() * Math.PI });
+          if (prefs.dmgNumbers && e.dmg >= 1) this.particles.push({ x: e.x + rnd(-8, 8), y: e.y - 18, vx: 0, vy: -1.1, life: 0, max: 34, color: e.kb > 90 ? '#ff6b7a' : '#ffffff', size: 15 + Math.min(10, e.dmg * 0.5), kind: 'num', text: String(Math.round(e.dmg)) });
           this.flashes[e.victim] = 1;
-          this.dmgShake[e.victim] = Math.min(14, 4 + e.dmg);
-          this.shake = Math.max(this.shake, Math.min(16, e.kb / 12));
+          this.dmgShake[e.victim] = Math.min(12, 3 + e.dmg);
+          this.shake = Math.max(this.shake, Math.min(14, e.kb / 14));
           break;
         }
         case 'shieldhit':
-          for (let i = 0; i < 8; i++) { const a = Math.random() * Math.PI * 2; this.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * 4, vy: Math.sin(a) * 4, life: 0, max: 12, color: '#bdf6ff', size: 2.5, kind: 'spark' }); }
+          this.particles.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0, max: 10, color: '#9fe8ff', size: 14, kind: 'ring' });
+          for (let i = 0; i < 4; i++) { const a = Math.random() * Math.PI * 2; this.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * 3.5, vy: Math.sin(a) * 3.5, life: 0, max: 10, color: '#cff6ff', size: 1.8, kind: 'spark' }); }
           break;
         case 'ko': {
-          const f = state.fighters[e.slot];
           const color = PLAYER_COLORS[e.slot];
           const ang = Math.atan2(-150 - e.y, -e.x);
-          this.particles.push({ x: e.x, y: e.y, vx: Math.cos(ang), vy: Math.sin(ang), life: 0, max: 40, color, size: 140, kind: 'beam' });
-          for (let i = 0; i < 40; i++) {
-            const a = ang + rnd(-0.8, 0.8), s = rnd(6, 22);
-            this.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0, max: rnd(25, 45), color: i % 2 ? color : '#fff', size: rnd(3, 7), kind: 'spark' });
+          this.particles.push({ x: e.x, y: e.y, vx: Math.cos(ang), vy: Math.sin(ang), life: 0, max: 36, color, size: 120, kind: 'beam' });
+          this.particles.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0, max: 22, color: '#ffffff', size: 70, kind: 'ring' });
+          for (let i = 0; i < (this.lowFx ? 10 : 22); i++) {
+            const a = ang + rnd(-0.6, 0.6), sp = rnd(8, 20);
+            this.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: rnd(20, 34), color: i % 3 ? color : '#ffffff', size: rnd(2, 4), kind: 'spark' });
           }
-          this.shake = 22; this.flashScreen = 0.5;
-          void f;
+          this.shake = 18; this.flashScreen = 0.35;
           break;
         }
-        case 'jump': this.dust(e.x, e.y, 5); break;
-        case 'land': this.dust(e.x, e.y, 4); break;
+        case 'jump': this.dust(e.x, e.y, 3); break;
+        case 'land': this.dust(e.x, e.y, 2); break;
         case 'explode': {
-          this.particles.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0, max: 18, color: '#ffb02e', size: e.r, kind: 'ring' });
-          for (let i = 0; i < 18; i++) { const a = Math.random() * Math.PI * 2, s = rnd(2, 7); this.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 1, life: 0, max: rnd(20, 34), color: i % 2 ? '#ff6a2b' : '#ffd23f', size: rnd(5, 11), kind: 'smoke' }); }
+          this.particles.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0, max: 16, color: '#ffb347', size: e.r, kind: 'ring' });
+          for (let i = 0; i < (this.lowFx ? 5 : 10); i++) { const a = Math.random() * Math.PI * 2, s = rnd(1.5, 5); this.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 0.8, life: 0, max: rnd(22, 34), color: i % 3 ? 'rgba(70,64,80,0.7)' : 'rgba(255,150,60,0.8)', size: rnd(7, 13), kind: 'smoke' }); }
+          for (let i = 0; i < 6; i++) { const a = Math.random() * Math.PI * 2; this.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * 7, vy: Math.sin(a) * 7, life: 0, max: 14, color: '#ffd38a', size: 2.2, kind: 'spark' }); }
           this.shake = Math.max(this.shake, 8);
           break;
         }
         case 'shieldbreak': {
           const f = state.fighters[e.slot];
-          for (let i = 0; i < 16; i++) { const a = Math.random() * Math.PI * 2; this.particles.push({ x: f.x, y: f.y - 40, vx: Math.cos(a) * 7, vy: Math.sin(a) * 7, life: 0, max: 30, color: '#bdf6ff', size: 4, kind: 'spark' }); }
+          for (let i = 0; i < 10; i++) { const a = Math.random() * Math.PI * 2; this.particles.push({ x: f.x, y: f.y - 40, vx: Math.cos(a) * 6, vy: Math.sin(a) * 6, life: 0, max: 24, color: '#bdf6ff', size: 2.5, kind: 'spark' }); }
           this.shake = 10;
           break;
         }
@@ -143,7 +149,7 @@ export class Renderer {
   }
 
   private dust(x: number, y: number, n: number) {
-    for (let i = 0; i < n; i++) this.particles.push({ x: x + rnd(-10, 10), y: y - 2, vx: rnd(-2, 2), vy: rnd(-1.5, -0.3), life: 0, max: rnd(14, 22), color: 'rgba(255,255,255,0.6)', size: rnd(4, 8), kind: 'dust' });
+    for (let i = 0; i < n; i++) this.particles.push({ x: x + rnd(-10, 10), y: y - 2, vx: rnd(-1.6, 1.6), vy: rnd(-1, -0.2), life: 0, max: rnd(12, 18), color: 'rgba(225,232,255,0.32)', size: rnd(4, 7), kind: 'dust' });
   }
 
   // ---- camera ---------------------------------------------------------------------------
@@ -162,11 +168,11 @@ export class Renderer {
     // the HUD covers the bottom strip, keep the action above it
     const hud = this.hudHeight();
     const viewH = this.h - hud;
-    const padX = portrait ? 90 : 260, padY = portrait ? 130 : 190;
+    const padX = portrait ? 90 : 200, padY = portrait ? 130 : 170;
     const bw = maxX - minX + padX * 2, bh = maxY - minY + padY * 2;
     const base = this.baseScale;
     let z = Math.min(this.w / bw, viewH / bh);
-    z = Math.max((portrait ? 0.64 : 0.42) * base, Math.min((portrait ? 1.1 : 1.25) * base, z));
+    z = Math.max((portrait ? 0.64 : 0.5) * base, Math.min((portrait ? 1.1 : 1.25) * base, z));
     const cx = (minX + maxX) / 2;
     // portrait: put the action at ~60% of the arena height (more air above, less island below)
     const anchor = portrait ? 0.6 : 0.5;
@@ -222,6 +228,7 @@ export class Renderer {
       this.flashes[f.slot] = Math.max(0, (this.flashes[f.slot] ?? 0) - 0.12);
     }
     for (const o of this.offsets) if (o) { o.x *= 0.82; o.y *= 0.82; }
+    if (this.showHitboxes) this.drawHitboxes(state);
 
     this.drawParticles();
     ctx.restore();
@@ -231,6 +238,29 @@ export class Renderer {
       ctx.fillStyle = `rgba(255,255,255,${this.flashScreen})`; ctx.fillRect(0, 0, this.w, this.h); this.flashScreen *= 0.85;
     }
     this.drawHud(state, opts);
+  }
+
+  /** Training aid: hurtboxes (yellow) and active hitboxes (red). */
+  private drawHitboxes(state: GameState) {
+    const { ctx } = this;
+    ctx.save();
+    ctx.lineWidth = 2;
+    for (const f of state.fighters) {
+      if (f.action === 'dead') continue;
+      const def = getFighter(f.charId);
+      ctx.strokeStyle = f.intang || f.invuln > 0 ? 'rgba(120,200,255,0.9)' : 'rgba(255,220,60,0.9)';
+      ctx.strokeRect(f.x - def.stats.w / 2, f.y - def.stats.h, def.stats.w, def.stats.h);
+      if (f.action !== 'attack' || !f.move) continue;
+      const m = def.moves[f.move];
+      for (const hb of m.hitboxes) {
+        if (f.af < hb.s || f.af > hb.e) continue;
+        ctx.fillStyle = hb.grab ? 'rgba(160,90,255,0.4)' : 'rgba(255,60,80,0.4)';
+        ctx.beginPath(); ctx.arc(f.x + hb.x * f.facing, f.y + hb.y, hb.r, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.fillStyle = 'rgba(255,60,80,0.4)';
+    for (const p of state.projectiles) { ctx.beginPath(); ctx.arc(p.x, p.y, p.def.r, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
   }
 
   private trail(x: number, y: number, kx: number, ky: number, color: string) {
@@ -262,21 +292,36 @@ export class Renderer {
       keep.push(p);
       const k = 1 - p.life / p.max;
       p.x += p.vx; p.y += p.vy;
-      if (p.kind === 'spark') { p.vx *= 0.9; p.vy *= 0.9; }
+      if (p.kind === 'spark') { p.vx *= 0.88; p.vy *= 0.88; }
+      if (p.kind === 'num') p.vy *= 0.95;
       if (p.kind === 'smoke' || p.kind === 'dust') { p.vx *= 0.94; p.vy *= 0.94; }
       ctx.save();
       ctx.globalAlpha = Math.max(0, k);
       switch (p.kind) {
         case 'spark':
-          ctx.strokeStyle = p.color; ctx.lineWidth = p.size; ctx.lineCap = 'round';
-          ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 2.2, p.y - p.vy * 2.2); ctx.stroke();
+          if (!this.lowFx) ctx.globalCompositeOperation = 'lighter';
+          ctx.strokeStyle = p.color; ctx.lineWidth = p.size * (0.5 + k * 0.5); ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 2.6, p.y - p.vy * 2.6); ctx.stroke();
+          break;
+        case 'slash': {
+          if (!this.lowFx) ctx.globalCompositeOperation = 'lighter';
+          ctx.translate(p.x, p.y); ctx.rotate(p.rot ?? 0);
+          const len = p.size * (1.2 - k * 0.4), wdt = 5 * k;
+          ctx.fillStyle = p.color;
+          ctx.beginPath(); ctx.moveTo(-len, 0); ctx.lineTo(0, -wdt); ctx.lineTo(len, 0); ctx.lineTo(0, wdt); ctx.closePath(); ctx.fill();
+          break;
+        }
+        case 'num':
+          ctx.font = `800 ${p.size}px Vazirmatn, system-ui, sans-serif`; ctx.textAlign = 'center';
+          ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(4,6,12,0.85)'; ctx.strokeText(p.text!, p.x, p.y);
+          ctx.fillStyle = p.color; ctx.fillText(p.text!, p.x, p.y);
           break;
         case 'dust': case 'smoke':
           ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (1.4 - k * 0.6), 0, Math.PI * 2); ctx.fill();
           break;
         case 'ring':
-          ctx.strokeStyle = p.color; ctx.lineWidth = 5 * k + 1;
-          ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (1.6 - k), 0, Math.PI * 2); ctx.stroke();
+          ctx.strokeStyle = p.color; ctx.lineWidth = 3 * k + 0.5;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (1.5 - k * 0.9), 0, Math.PI * 2); ctx.stroke();
           break;
         case 'star': star(ctx, p.x, p.y, p.size * (0.6 + k), p.color, (p.rot ?? 0) + p.life * 0.1); break;
         case 'beam': {

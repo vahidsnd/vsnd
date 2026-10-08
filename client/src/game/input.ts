@@ -1,6 +1,8 @@
 import { Btn } from '@nb/shared';
 import { haptic } from '../services/platform.ts';
+import { prefs } from '../services/prefs.ts';
 import { t } from '../i18n.ts';
+import { svgHtml } from '../ui/icons.ts';
 
 export interface InputSource { read(): number; destroy(): void; label: string }
 
@@ -74,15 +76,16 @@ export class TouchControls implements InputSource {
 
   constructor(parent: HTMLElement) {
     this.el = document.createElement('div');
-    this.el.className = 'touch';
+    this.el.className = prefs.leftHanded ? 'touch lefty' : 'touch';
+    this.el.style.setProperty('--s', String(prefs.btnScale));
+    this.el.style.setProperty('--o', String(prefs.btnOpacity));
     this.el.innerHTML = `
       <div class="stick-zone"><div class="stick-base"><div class="stick-knob"></div></div></div>
-      <div class="stick-hint">${t('moveHint')}</div>
       <div class="tbtns">
-        <button data-b="${Btn.SHIELD}" class="tb tb-shield">🛡</button>
-        <button data-b="${Btn.GRAB}" class="tb tb-grab">✊</button>
-        <button data-b="${Btn.STRONG}" class="tb tb-smash">💥</button>
-        <button data-b="${Btn.JUMP}" class="tb tb-jump"><span>⤒<small>${t('btnJump')}</small></span></button>
+        <button data-b="${Btn.SHIELD}" class="tb tb-shield">${svgHtml('shield', 22)}</button>
+        <button data-b="${Btn.GRAB}" class="tb tb-grab">${svgHtml('grab', 22)}</button>
+        <button data-b="${Btn.STRONG}" class="tb tb-smash">${svgHtml('zap', 22)}</button>
+        <button data-b="${Btn.JUMP}" class="tb tb-jump"><span>${svgHtml('up', 22)}<small>${t('btnJump')}</small></span></button>
         <button data-b="${Btn.SPECIAL}" class="tb tb-special"><span>B<small>${t('btnSpecial')}</small></span></button>
         <button data-b="${Btn.ATTACK}" class="tb tb-attack"><span>A<small>${t('btnAttack')}</small></span></button>
       </div>`;
@@ -95,25 +98,23 @@ export class TouchControls implements InputSource {
       if (this.stick.id !== -1) return;
       try { zone.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
       this.stick = { id: e.pointerId, ox: e.clientX, oy: e.clientY, x: 0, y: 0 };
-      const r = zone.getBoundingClientRect();
-      // keep the whole base inside the zone
-      const bx = Math.max(60, Math.min(r.width - 60, e.clientX - r.left));
-      const by = Math.max(60, Math.min(r.height - 60, e.clientY - r.top));
-      this.stick.ox = r.left + bx; this.stick.oy = r.top + by;
-      this.base.style.left = `${bx}px`; this.base.style.top = `${by}px`;
+      this.base.style.left = `${e.clientX}px`; this.base.style.top = `${e.clientY}px`;
       this.base.classList.add('on');
-      this.move(e.clientX, e.clientY);
       e.preventDefault();
     });
     zone.addEventListener('pointermove', (e) => {
       if (e.pointerId !== this.stick.id) return;
-      this.move(e.clientX, e.clientY);
+      const R = 56;
+      let dx = e.clientX - this.stick.ox, dy = e.clientY - this.stick.oy;
+      const l = Math.hypot(dx, dy);
+      if (l > R) { dx = (dx / l) * R; dy = (dy / l) * R; }
+      this.stick.x = dx / R; this.stick.y = dy / R;
+      this.knob.style.transform = `translate(${dx}px, ${dy}px)`;
     });
     const end = (e: PointerEvent) => {
       if (e.pointerId !== this.stick.id) return;
       this.stick = { id: -1, ox: 0, oy: 0, x: 0, y: 0 };
       this.knob.style.transform = '';
-      this.base.style.left = ''; this.base.style.top = '';
       this.base.classList.remove('on');
     };
     zone.addEventListener('pointerup', end);
@@ -131,15 +132,6 @@ export class TouchControls implements InputSource {
       btn.addEventListener('pointercancel', up);
       btn.addEventListener('contextmenu', (e) => e.preventDefault());
     });
-  }
-
-  private move(cx: number, cy: number) {
-    const R = 52;
-    let dx = cx - this.stick.ox, dy = cy - this.stick.oy;
-    const l = Math.hypot(dx, dy);
-    if (l > R) { dx = (dx / l) * R; dy = (dy / l) * R; }
-    this.stick.x = dx / R; this.stick.y = dy / R;
-    this.knob.style.transform = `translate(${dx}px, ${dy}px)`;
   }
 
   read() {

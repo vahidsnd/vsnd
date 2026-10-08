@@ -1,5 +1,5 @@
 import {
-  applyFighters, applyMeta, botInput, cloneState, createBrain, createGame, decodeProjectiles, step,
+  Btn, applyFighters, applyMeta, botInput, cloneState, createBrain, createGame, decodeProjectiles, step,
   INPUT_REDUNDANCY, type BotBrain, type GameEvent, type GameState, type MatchConfig, type MatchEndInfo,
 } from '@nb/shared';
 import type { InputSource } from './input.ts';
@@ -26,6 +26,9 @@ export class LocalSession implements Session {
   canPause = true;
   corrections = [];
   private brains: (BotBrain | null)[];
+  /** training dummy behaviour (slot 1) */
+  dummy: 'idle' | 'jump' | 'shield' | 'cpu' = 'idle';
+  private dummyBrain = createBrain(4);
 
   constructor(cfg: MatchConfig, private sources: (InputSource | null)[], botLevels: (number | null)[], public training = false) {
     this.state = createGame(cfg);
@@ -41,6 +44,12 @@ export class LocalSession implements Session {
       const src = this.sources[i];
       if (src) return src.read();
       const b = this.brains[i];
+      if (this.training && i === 1 && !b) {
+        if (this.dummy === 'cpu') return botInput(this.state, i, this.dummyBrain);
+        if (this.dummy === 'shield') return Btn.SHIELD;
+        if (this.dummy === 'jump') return this.state.frame % 70 < 6 ? Btn.JUMP : 0;
+        return 0;
+      }
       return b ? botInput(this.state, i, b) : 0;
     });
     step(this.state, inputs);

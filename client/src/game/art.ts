@@ -178,7 +178,7 @@ export function drawFighter(ctx: CanvasRenderingContext2D, f: FighterState, skin
 
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  ctx.lineWidth = 3.5;
+  ctx.lineWidth = 2.8;
   ctx.strokeStyle = INK;
 
   // charge glow
@@ -291,26 +291,48 @@ function drawSword(ctx: CanvasRenderingContext2D, hand: V, ang: number, skin: Fi
   ctx.restore();
 }
 
-function eyes(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, mode: Pose['eyes'], time: number, gap = r * 2.2, slot = 0) {
-  const blink = (Math.floor(time * 10 + slot * 7) % 37) === 0;
+function eyes(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, mode: Pose['eyes'], time: number, gap = r * 2.2, slot = 0, iris = '#7fe0ff') {
+  const blink = (Math.floor(time * 10 + slot * 7) % 41) === 0;
+  ctx.save();
+  ctx.lineWidth = 2;
   for (const dx of [0, gap]) {
     const ex = x + dx;
     if (mode === 'hurt') {
-      ctx.save(); ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(ex - r * 0.7, y - r * 0.7); ctx.lineTo(ex + r * 0.7, y + r * 0.7);
-      ctx.moveTo(ex + r * 0.7, y - r * 0.7); ctx.lineTo(ex - r * 0.7, y + r * 0.7); ctx.stroke(); ctx.restore();
+      ctx.beginPath(); ctx.moveTo(ex - r * 0.6, y - r * 0.5); ctx.lineTo(ex + r * 0.6, y + r * 0.4);
+      ctx.moveTo(ex + r * 0.6, y - r * 0.5); ctx.lineTo(ex - r * 0.6, y + r * 0.4); ctx.stroke();
       continue;
     }
     if (mode === 'closed' || blink) {
-      ctx.save(); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(ex - r * 0.8, y); ctx.lineTo(ex + r * 0.8, y); ctx.stroke(); ctx.restore();
+      ctx.beginPath(); ctx.moveTo(ex - r, y); ctx.quadraticCurveTo(ex, y + r * 0.35, ex + r, y - r * 0.1); ctx.stroke();
       continue;
     }
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.ellipse(ex, y, r * 0.85, r * (mode === 'focus' ? 0.75 : 1.05), 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = INK;
-    ctx.beginPath(); ctx.arc(ex + r * 0.25, y + (mode === 'focus' ? 0 : 1), r * 0.45, 0, Math.PI * 2); ctx.fill();
-    if (mode === 'focus') { ctx.save(); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(ex - r, y - r * 1.1); ctx.lineTo(ex + r, y - r * 0.6); ctx.stroke(); ctx.restore(); }
+    const open = mode === 'focus' ? 0.5 : 0.75;
+    // almond-shaped eye
+    ctx.fillStyle = '#f4f6ff';
+    ctx.beginPath(); ctx.moveTo(ex - r, y); ctx.quadraticCurveTo(ex, y - r * open * 1.2, ex + r, y - r * 0.18); ctx.quadraticCurveTo(ex, y + r * 0.6, ex - r, y); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.save(); ctx.clip();
+    ctx.fillStyle = iris; ctx.beginPath(); ctx.arc(ex + r * 0.32, y - r * 0.08, r * 0.46, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(ex + r * 0.38, y - r * 0.08, r * 0.22, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    // brow: angled = determined
+    ctx.save(); ctx.lineWidth = 2.6;
+    ctx.beginPath(); ctx.moveTo(ex - r * 1.1, y - r * (mode === 'focus' ? 1.05 : 1.15)); ctx.lineTo(ex + r * 1.05, y - r * (mode === 'focus' ? 0.55 : 0.8)); ctx.stroke();
+    ctx.restore();
   }
+  ctx.restore();
+}
+
+/** Cel shading for the current path: core shadow toward the back/bottom + rim light toward the front/top. */
+function cel(ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: number, ry: number, rim: string) {
+  ctx.save();
+  ctx.clip();
+  ctx.fillStyle = 'rgba(6,8,22,0.26)';
+  ctx.beginPath(); ctx.ellipse(cx - rx * 0.6, cy + ry * 0.55, rx * 1.15, ry * 1.1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 0.75; ctx.strokeStyle = rim; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(cx + rx * 0.16, cy - ry * 0.12, rx * 0.98, ry * 0.98, 0, -Math.PI * 0.75, Math.PI * 0.05); ctx.stroke();
+  ctx.restore();
+  ctx.stroke(); // re-ink the outline over the shading
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -325,8 +347,8 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 
 function highlight(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number) {
   ctx.save();
-  ctx.fillStyle = 'rgba(255,255,255,0.28)';
-  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, -0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.16)';
+  ctx.beginPath(); ctx.ellipse(x, y, rx * 0.8, ry * 0.7, -0.5, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
 
@@ -341,25 +363,30 @@ function drawBody(ctx: CanvasRenderingContext2D, def: FighterDef, skin: FighterD
       ctx.fillStyle = second; ctx.beginPath(); ctx.ellipse(0, -34, 7, 8, 0, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
       // torso
-      ctx.fillStyle = main; ctx.beginPath(); ctx.ellipse(0, -h * 0.3, w * 0.42, h * 0.27, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = second; ctx.beginPath(); ctx.ellipse(w * 0.12, -h * 0.28, w * 0.2, h * 0.17, 0, 0, Math.PI * 2); ctx.fill();
+      // athletic torso (tapered)
+      ctx.fillStyle = main; ctx.beginPath();
+      ctx.moveTo(-w * 0.36, -h * 0.5); ctx.quadraticCurveTo(0, -h * 0.6, w * 0.38, -h * 0.5);
+      ctx.quadraticCurveTo(w * 0.36, -h * 0.12, w * 0.18, -h * 0.06); ctx.lineTo(-w * 0.2, -h * 0.06);
+      ctx.quadraticCurveTo(-w * 0.38, -h * 0.12, -w * 0.36, -h * 0.5); ctx.closePath();
+      ctx.fill(); ctx.stroke(); cel(ctx, 0, -h * 0.3, w * 0.4, h * 0.27, glow);
+      ctx.fillStyle = second; ctx.beginPath(); ctx.moveTo(w * 0.02, -h * 0.48); ctx.lineTo(w * 0.3, -h * 0.46); ctx.lineTo(w * 0.12, -h * 0.16); ctx.closePath(); ctx.fill();
       // head
-      const hy = -h * 0.72;
+      const hy = -h * 0.74;
       ctx.fillStyle = main;
-      for (const ex of [-w * 0.18, w * 0.2]) { ctx.beginPath(); ctx.moveTo(ex - 9, hy - 12); ctx.lineTo(ex + 1, hy - 34); ctx.lineTo(ex + 10, hy - 10); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-      ctx.beginPath(); ctx.arc(0, hy, w * 0.42, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = second; ctx.beginPath(); ctx.ellipse(w * 0.36, hy + 6, w * 0.2, w * 0.13, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(w * 0.54, hy + 3, 3.5, 0, Math.PI * 2); ctx.fill();
-      highlight(ctx, -w * 0.12, hy - w * 0.2, 8, 5);
-      eyes(ctx, w * 0.02, hy - 3, 5, pose.eyes, time, 13, f.slot);
+      for (const ex of [-w * 0.16, w * 0.16]) { ctx.beginPath(); ctx.moveTo(ex - 7, hy - 10); ctx.lineTo(ex + 3, hy - 40); ctx.lineTo(ex + 9, hy - 9); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+      ctx.beginPath(); ctx.ellipse(0, hy, w * 0.37, w * 0.34, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); cel(ctx, 0, hy, w * 0.37, w * 0.34, glow);
+      // muzzle
+      ctx.fillStyle = second; ctx.beginPath(); ctx.moveTo(w * 0.12, hy + 2); ctx.quadraticCurveTo(w * 0.42, hy - 4, w * 0.62, hy + 6); ctx.quadraticCurveTo(w * 0.4, hy + 16, w * 0.14, hy + 12); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(w * 0.6, hy + 5, 2.6, 0, Math.PI * 2); ctx.fill();
+      eyes(ctx, w * 0.04, hy - 3, 4.6, pose.eyes, time, 11, f.slot, glow);
       ctx.save(); ctx.fillStyle = glow; ctx.globalAlpha = 0.9; ctx.beginPath(); ctx.arc(0, hy - w * 0.42 - 2, 3, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       break;
     }
     case 'golem': {
       ctx.fillStyle = main;
-      roundRect(ctx, -w * 0.5, -h * 0.82, w, h * 0.72, 16); ctx.fill(); ctx.stroke();
+      roundRect(ctx, -w * 0.5, -h * 0.82, w, h * 0.72, 14); ctx.fill(); ctx.stroke(); cel(ctx, 0, -h * 0.46, w * 0.5, h * 0.36, glow);
       ctx.fillStyle = shade(main, -0.2);
-      roundRect(ctx, -w * 0.3, -h * 1.0, w * 0.62, h * 0.26, 10); ctx.fill(); ctx.stroke();
+      roundRect(ctx, -w * 0.3, -h * 1.0, w * 0.62, h * 0.26, 9); ctx.fill(); ctx.stroke(); cel(ctx, 0, -h * 0.87, w * 0.31, h * 0.13, glow);
       // cracks
       ctx.save(); ctx.strokeStyle = glow;  ctx.lineWidth = 3;
       ctx.beginPath(); ctx.moveTo(-w * 0.2, -h * 0.7); ctx.lineTo(-w * 0.05, -h * 0.55); ctx.lineTo(-w * 0.18, -h * 0.4); ctx.lineTo(0, -h * 0.25);
@@ -372,8 +399,8 @@ function drawBody(ctx: CanvasRenderingContext2D, def: FighterDef, skin: FighterD
       break;
     }
     case 'bird': {
-      ctx.fillStyle = main; ctx.beginPath(); ctx.ellipse(0, -h * 0.45, w * 0.55, h * 0.45, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = second; ctx.beginPath(); ctx.ellipse(w * 0.15, -h * 0.35, w * 0.3, h * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = main; ctx.beginPath(); ctx.ellipse(0, -h * 0.46, w * 0.48, h * 0.45, 0.08, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); cel(ctx, 0, -h * 0.46, w * 0.48, h * 0.45, glow);
+      ctx.fillStyle = second; ctx.beginPath(); ctx.moveTo(w * 0.05, -h * 0.55); ctx.quadraticCurveTo(w * 0.42, -h * 0.4, w * 0.12, -h * 0.1); ctx.quadraticCurveTo(-w * 0.02, -h * 0.3, w * 0.05, -h * 0.55); ctx.fill();
       // crest
       ctx.fillStyle = glow;
       for (let i = 0; i < 3; i++) {
@@ -381,22 +408,21 @@ function drawBody(ctx: CanvasRenderingContext2D, def: FighterDef, skin: FighterD
         ctx.beginPath(); ctx.ellipse(0, -10, 4, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
       }
       // beak
-      ctx.fillStyle = '#ffb02e';
-      ctx.beginPath(); ctx.moveTo(w * 0.42, -h * 0.66); ctx.lineTo(w * 0.85, -h * 0.58); ctx.lineTo(w * 0.42, -h * 0.5); ctx.closePath(); ctx.fill(); ctx.stroke();
-      highlight(ctx, -w * 0.2, -h * 0.72, 9, 6);
-      eyes(ctx, w * 0.1, -h * 0.66, 5, pose.eyes, time, 12, f.slot);
+      ctx.fillStyle = '#f2b23a';
+      ctx.beginPath(); ctx.moveTo(w * 0.38, -h * 0.68); ctx.quadraticCurveTo(w * 0.86, -h * 0.68, w * 0.8, -h * 0.52); ctx.lineTo(w * 0.62, -h * 0.56); ctx.lineTo(w * 0.38, -h * 0.52); ctx.closePath(); ctx.fill(); ctx.stroke();
+      eyes(ctx, w * 0.08, -h * 0.68, 4.4, pose.eyes, time, 10.5, f.slot, glow);
       break;
     }
     case 'robot': {
       ctx.fillStyle = main;
-      roundRect(ctx, -w * 0.4, -h * 0.55, w * 0.8, h * 0.48, 10); ctx.fill(); ctx.stroke();
+      roundRect(ctx, -w * 0.4, -h * 0.55, w * 0.8, h * 0.48, 9); ctx.fill(); ctx.stroke(); cel(ctx, 0, -h * 0.31, w * 0.4, h * 0.24, glow);
       ctx.fillStyle = second;
       roundRect(ctx, -w * 0.18, -h * 0.45, w * 0.36, h * 0.2, 5); ctx.fill(); ctx.stroke();
       ctx.save(); ctx.fillStyle = glow; 
       ctx.beginPath(); ctx.arc(0, -h * 0.35, 4, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       // head
       ctx.fillStyle = main;
-      roundRect(ctx, -w * 0.45, -h * 1.0, w * 0.9, h * 0.42, 12); ctx.fill(); ctx.stroke();
+      roundRect(ctx, -w * 0.45, -h * 1.0, w * 0.9, h * 0.42, 11); ctx.fill(); ctx.stroke(); cel(ctx, 0, -h * 0.79, w * 0.45, h * 0.21, glow);
       ctx.fillStyle = second;
       roundRect(ctx, -w * 0.25, -h * 0.92, w * 0.66, h * 0.24, 8); ctx.fill(); ctx.stroke();
       ctx.save(); ctx.fillStyle = glow; 
@@ -417,31 +443,31 @@ function drawBody(ctx: CanvasRenderingContext2D, def: FighterDef, skin: FighterD
       ctx.beginPath(); ctx.moveTo(-w * 0.3, -h * 0.78); ctx.quadraticCurveTo(-w * 0.9, -h * 0.8 + wave, -w * 1.2, -h * 0.7 - wave); ctx.lineTo(-w * 1.1, -h * 0.62 - wave);
       ctx.quadraticCurveTo(-w * 0.8, -h * 0.7 + wave, -w * 0.3, -h * 0.7); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
       ctx.fillStyle = main;
-      ctx.beginPath(); ctx.ellipse(0, -h * 0.32, w * 0.4, h * 0.28, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = second; ctx.fillRect(-w * 0.4, -h * 0.34, w * 0.8, 6);
+      ctx.beginPath(); ctx.moveTo(-w * 0.34, -h * 0.55); ctx.quadraticCurveTo(0, -h * 0.62, w * 0.36, -h * 0.55); ctx.quadraticCurveTo(w * 0.34, -h * 0.1, w * 0.16, -h * 0.05); ctx.lineTo(-w * 0.18, -h * 0.05); ctx.quadraticCurveTo(-w * 0.36, -h * 0.1, -w * 0.34, -h * 0.55); ctx.closePath();
+      ctx.fill(); ctx.stroke(); cel(ctx, 0, -h * 0.32, w * 0.36, h * 0.27, glow);
+      ctx.fillStyle = second; ctx.fillRect(-w * 0.36, -h * 0.3, w * 0.72, 5);
       ctx.fillStyle = main;
-      ctx.beginPath(); ctx.arc(0, -h * 0.74, w * 0.45, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(0, -h * 0.76, w * 0.4, w * 0.38, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); cel(ctx, 0, -h * 0.76, w * 0.4, w * 0.38, glow);
       ctx.fillStyle = second;
       ctx.beginPath(); ctx.rect(-w * 0.45, -h * 0.8, w * 0.9, 12); ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#f6e7d8';
       ctx.beginPath(); ctx.ellipse(w * 0.15, -h * 0.74, w * 0.28, 7, 0, 0, Math.PI * 2); ctx.fill();
-      eyes(ctx, w * 0.06, -h * 0.74, 4.5, pose.eyes, time, 12, f.slot);
+      eyes(ctx, w * 0.06, -h * 0.75, 4.2, pose.eyes, time, 11, f.slot, glow);
       highlight(ctx, -w * 0.18, -h * 0.9, 7, 4);
       break;
     }
     case 'imp': {
       // tail
-      ctx.save(); ctx.strokeStyle = INK; ctx.lineWidth = 3.5;
+      ctx.save(); ctx.strokeStyle = INK; ctx.lineWidth = 2.8;
       ctx.beginPath(); ctx.moveTo(-w * 0.4, -h * 0.25); ctx.quadraticCurveTo(-w * 1.0, -h * 0.2 + Math.sin(time * 6) * 6, -w * 0.95, -h * 0.6); ctx.stroke();
       ctx.fillStyle = second; ctx.beginPath(); ctx.moveTo(-w * 0.95, -h * 0.75); ctx.lineTo(-w * 0.8, -h * 0.55); ctx.lineTo(-w * 1.1, -h * 0.55); ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.restore();
       ctx.fillStyle = second;
-      for (const ex of [-w * 0.3, w * 0.25]) { ctx.beginPath(); ctx.moveTo(ex - 6, -h * 0.85); ctx.lineTo(ex + 2, -h * 1.12); ctx.lineTo(ex + 8, -h * 0.82); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+      for (const [ex, dir] of [[-w * 0.3, -1], [w * 0.25, 1]] as const) { ctx.beginPath(); ctx.moveTo(ex - 6, -h * 0.84); ctx.quadraticCurveTo(ex + dir * 10, -h * 1.05, ex + dir * 14, -h * 1.22); ctx.lineTo(ex + 7, -h * 0.82); ctx.closePath(); ctx.fill(); ctx.stroke(); }
       ctx.fillStyle = main;
-      ctx.beginPath(); ctx.ellipse(0, -h * 0.5, w * 0.62, h * 0.47, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      highlight(ctx, -w * 0.25, -h * 0.75, 8, 5);
-      eyes(ctx, -w * 0.05, -h * 0.58, 7, pose.eyes, time, 17, f.slot);
-      ctx.save(); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(w * 0.12, -h * 0.35, 6, 0.2, Math.PI - 0.2); ctx.stroke(); ctx.restore();
+      ctx.beginPath(); ctx.ellipse(0, -h * 0.5, w * 0.58, h * 0.46, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); cel(ctx, 0, -h * 0.5, w * 0.58, h * 0.46, glow);
+      eyes(ctx, -w * 0.08, -h * 0.6, 5, pose.eyes, time, 14, f.slot, glow);
+      ctx.save(); ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(w * 0.0, -h * 0.36); ctx.quadraticCurveTo(w * 0.18, -h * 0.3, w * 0.32, -h * 0.4); ctx.stroke(); ctx.restore();
       break;
     }
   }
