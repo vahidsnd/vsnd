@@ -88,8 +88,8 @@ class BillingService {
   private provider: Provider = new WebProvider();
   ready = false;
   async init() {
-    if (isNative) this.provider = MARKET === 'myket' ? new MyketProvider() : new PlayProvider();
-    try { await this.provider.init(); this.ready = true; } catch (e) { console.warn('billing init failed', e); this.ready = !isNative; }
+    if (isNative && MARKET !== 'web') this.provider = MARKET === 'myket' ? new MyketProvider() : new PlayProvider();
+    try { await this.provider.init(); this.ready = true; } catch (e) { console.warn('billing init failed', e); this.ready = !isNative || MARKET === 'web'; }
   }
   price(p: IapProduct): string {
     return this.provider.price(p.id) ?? p.price[MARKET] ?? p.price.web;
@@ -97,7 +97,7 @@ class BillingService {
   async buy(id: string): Promise<boolean> {
     const p = IAP_PRODUCTS.find((x) => x.id === id);
     if (!p || !this.ready) return false;
-    if (!backend.online && isNative) return false; // purchases always need the server to verify
+    if (!backend.online && isNative && MARKET !== 'web') return false; // purchases always need the server to verify
     return this.provider.buy(p);
   }
 }

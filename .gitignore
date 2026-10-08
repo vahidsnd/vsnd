@@ -43,3 +43,4 @@ server/data/
 client/android/
 client/ios/
 .env.local
+client/native-shell/build/

@@ -120,10 +120,11 @@ class AdService {
   private bannerOn = false;
 
   async init() {
-    if (isNative) this.provider = MARKET === 'myket' ? new TapsellProvider() : new AdMobProvider();
+    // store builds use the real SDKs; a 'web' market build (also inside the APK) uses demo ads
+    if (isNative && MARKET !== 'web') this.provider = MARKET === 'myket' ? new TapsellProvider() : new AdMobProvider();
     try { await this.provider.init(); this.ready = true; } catch (e) {
       console.warn('ads init failed', e);
-      this.provider = new DemoProvider(); this.ready = !isNative;
+      this.provider = new DemoProvider(); this.ready = !isNative || MARKET === 'web';
     }
   }
 

@@ -9,8 +9,10 @@
     "build:googleplay": "vite build --mode googleplay",
     "build:myket": "vite build --mode myket",
     "preview": "vite preview --host",
-    "android:googleplay": "npm run build:googleplay && npx cap sync android",
-    "android:myket": "npm run build:myket && npx cap sync android"
+    "android:googleplay": "npm run build:googleplay && MARKET=googleplay npx cap sync android",
+    "android:myket": "npm run build:myket && MARKET=myket npx cap sync android",
+    "build:demo": "vite build --mode demo",
+    "android:demo": "npm run build:demo && MARKET=demo npx cap sync android"
   },
   "dependencies": {
     "@nb/shared": "*",

@@ -5,9 +5,11 @@ export const MARKET = ((import.meta.env.VITE_MARKET as string) || 'web') as Mark
 export const isNative = Capacitor.isNativePlatform();
 
 export function serverHttp(): string {
+  const custom = store.get<string>('server', '');
+  if (custom) return custom.replace(/\/$/, '');
   const env = (import.meta.env.VITE_SERVER_URL as string) || '';
   if (env) return env.replace(/\/$/, '');
-  return location.origin;
+  return isNative ? '' : location.origin; // native app without a configured server → offline mode
 }
 
 export function serverWs(): string {

@@ -91,7 +91,7 @@ export class TouchControls implements InputSource {
 
     zone.addEventListener('pointerdown', (e) => {
       if (this.stick.id !== -1) return;
-      zone.setPointerCapture(e.pointerId);
+      try { zone.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
       this.stick = { id: e.pointerId, ox: e.clientX, oy: e.clientY, x: 0, y: 0 };
       this.base.style.left = `${e.clientX}px`; this.base.style.top = `${e.clientY}px`;
       this.base.classList.add('on');
@@ -118,7 +118,7 @@ export class TouchControls implements InputSource {
     this.el.querySelectorAll<HTMLButtonElement>('.tb').forEach((btn) => {
       const bit = Number(btn.dataset.b);
       btn.addEventListener('pointerdown', (e) => {
-        btn.setPointerCapture(e.pointerId);
+        try { btn.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
         this.held.set(e.pointerId, bit); this.latch |= bit; btn.classList.add('on'); e.preventDefault();
         haptic('light');
       });

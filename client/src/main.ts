@@ -44,6 +44,16 @@ async function boot() {
     App.addListener('pause', () => audio.stopMusic());
     App.addListener('resume', () => { audio.unlock(); audio.startMusic('menu'); });
   }
+  // hooks for the lightweight Android test shell (client/native-shell)
+  const w = window as any;
+  w.nbBack = () => {
+    if (document.querySelector('.modal-wrap')) { (document.querySelector('.modal-wrap .modal-x') as HTMLElement | null)?.click(); return true; }
+    if (document.querySelector('.home')) return false;
+    if (document.querySelector('.game')) { (document.querySelector('.pause-btn') as HTMLElement | null)?.click(); return true; }
+    show(homeScreen); return true;
+  };
+  w.nbPause = () => { audio.stopMusic(); };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) audio.stopMusic(); else audio.startMusic('menu'); });
   document.title = t('title');
 }
 

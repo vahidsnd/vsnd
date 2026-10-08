@@ -52,6 +52,18 @@ npx cap open android                # build the signed AAB/APK in Android Studio
 
 > The native plugin Java code and Gradle versions (Tapsell Plus, Myket billing client) follow the vendors' documented APIs but were not compiled in this environment; check the versions against the current Tapsell/Myket docs on first build.
 
+## Quick test APK (no Gradle)
+
+`client/native-shell` is a tiny native WebView shell that packs the game into an APK with plain SDK tools
+(demo ads, sandbox purchases, offline profile; set a server in **Settings → Server** to play online):
+
+```bash
+ANDROID_JAR=/path/to/platforms/android-34/android.jar client/native-shell/build-apk.sh
+# → client/native-shell/build/NeonBrawl-test.apk
+```
+
+For store releases use the Capacitor project (`npm run android:myket` / `android:googleplay`; `MARKET=demo npx cap sync` builds without store SDKs).
+
 ## Screenshots
 
 | | |

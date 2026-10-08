@@ -6,6 +6,7 @@ import { backend } from '../services/backend.ts';
 import { billing } from '../services/billing.ts';
 import { ads } from '../services/ads.ts';
 import { audio } from '../game/audio.ts';
+import { store } from '../services/platform.ts';
 import { setLang, t, num, isFa, loc, duration } from '../i18n.ts';
 import { h, show, topBar, fighterCanvas, modal, toast, rewardReveal, crateToItems, icon, currency, confirmBox, getFighterBySkin, type Screen, type Child } from './dom.ts';
 import { homeScreen } from './home.ts';
@@ -373,6 +374,11 @@ export function settingsScreen(): Screen {
       toggle(t('music'), p.settings.music, (v) => { audio.setMusic(v); if (v) audio.startMusic('menu'); backend.saveProfile({ settings: { music: v } }); }),
       h('div', { class: 'field' }, h('span', {}, t('removeAds')),
         p.noAds ? h('span', { class: 'tag ok' }, t('noAdsActive')) : h('button', { class: 'btn small gold', onclick: () => buyIap('no_ads', () => show(settingsScreen)) }, billing.price(IAP_PRODUCTS.find((x) => x.id === 'no_ads')!))),
+      (() => {
+        const srv = h('input', { class: 'input', value: store.get('server', ''), placeholder: 'https://your-server:8787', dir: 'ltr', style: { flex: '1' } }) as HTMLInputElement;
+        return h('div', { class: 'field' }, h('span', {}, isFa() ? 'سرور' : 'Server'), srv,
+          h('button', { class: 'btn small primary', onclick: () => { store.set('server', srv.value.trim()); location.reload(); } }, t('save')));
+      })(),
       h('div', { class: 'help' }, h('b', {}, t('controls')), h('p', {}, t('keyboardHelp')), h('p', { class: 'muted' }, 'Gamepad: A attack · B special · X/Y jump · RB shield · LB grab · right stick smash')),
       h('div', { class: 'help' }, h('b', {}, t('howToPlay')), h('ul', {}, ['tutorial1', 'tutorial2', 'tutorial3', 'tutorial4'].map((k) => h('li', {}, t(k))))),
       h('small', { class: 'muted' }, `ID: ${p.id} · v1.0.0 · ${backend.online ? t('online') : t('offline')}`),

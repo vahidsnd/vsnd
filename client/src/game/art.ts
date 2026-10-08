@@ -156,6 +156,8 @@ export function drawFighter(ctx: CanvasRenderingContext2D, f: FighterState, skin
   if (f.intang) alpha *= 0.45;
   if (f.invuln > 0 && f.action !== 'ledge') alpha *= (Math.floor(o.time * 20) % 2 ? 0.55 : 0.9);
   ctx.globalAlpha = alpha;
+  // hit flash: brighten only the fighter's own pixels
+  if (o.flash && o.flash > 0.05) ctx.filter = `brightness(${(1 + o.flash * 1.6).toFixed(2)})`;
 
   let sx = 0;
   if (f.hitlag > 0 && f.action === 'hitstun') sx = (Math.random() - 0.5) * 6;
@@ -200,13 +202,6 @@ export function drawFighter(ctx: CanvasRenderingContext2D, f: FighterState, skin
   drawLimb(ctx, pose.hf, true, def, skin, false, pose.lead === 'hf');
 
   ctx.shadowBlur = 0;
-  // damage flash
-  if (o.flash && o.flash > 0) {
-    ctx.globalCompositeOperation = 'source-atop';
-    ctx.fillStyle = `rgba(255,255,255,${o.flash})`;
-    ctx.fillRect(-w * 2, -h * 2, w * 4, h * 3);
-    ctx.globalCompositeOperation = 'source-over';
-  }
   ctx.restore();
 
   // shield bubble (not rotated)

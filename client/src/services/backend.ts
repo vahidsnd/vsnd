@@ -23,6 +23,7 @@ class Backend {
 
   async init(): Promise<void> {
     try {
+      if (!serverHttp()) throw new Error('no-server');
       if (!this.token) {
         const r = await this.req<{ token: string; profile: Profile }>('POST', '/api/guest', { name: store.get('profile', null as Profile | null)?.name });
         this.token = r.token; store.set('token', r.token);
