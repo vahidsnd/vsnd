@@ -1,0 +1,31 @@
+{
+  "name": "@nb/client",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "build:googleplay": "vite build --mode googleplay",
+    "build:myket": "vite build --mode myket",
+    "preview": "vite preview --host",
+    "android:googleplay": "npm run build:googleplay && npx cap sync android",
+    "android:myket": "npm run build:myket && npx cap sync android"
+  },
+  "dependencies": {
+    "@nb/shared": "*",
+    "@capacitor/android": "^7.2.0",
+    "@capacitor/app": "^7.0.1",
+    "@capacitor/core": "^7.2.0",
+    "@capacitor/haptics": "^7.0.1",
+    "@capacitor-community/admob": "^7.0.3",
+    "capacitor-myket-billing": "file:./plugins/capacitor-myket-billing",
+    "capacitor-tapsell-plus": "file:./plugins/capacitor-tapsell-plus",
+    "cordova-plugin-purchase": "^13.12.1",
+    "vazirmatn": "^33.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.2.0",
+    "vite": "^6.3.5"
+  }
+}

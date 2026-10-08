@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="ir.mservices.market.BILLING" />
+    <queries>
+        <package android:name="ir.mservices.market" />
+    </queries>
+</manifest>

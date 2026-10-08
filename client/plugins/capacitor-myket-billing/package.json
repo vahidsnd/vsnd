@@ -1,0 +1,9 @@
+{
+  "name": "capacitor-myket-billing",
+  "version": "1.0.0",
+  "description": "Minimal Capacitor bridge for Myket in-app billing",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "capacitor": { "android": { "src": "android" } },
+  "peerDependencies": { "@capacitor/core": ">=6" }
+}

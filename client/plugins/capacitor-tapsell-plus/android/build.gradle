@@ -1,0 +1,24 @@
+apply plugin: 'com.android.library'
+
+android {
+    namespace "ir.neonbrawl.tapsell"
+    compileSdk project.hasProperty('compileSdkVersion') ? rootProject.ext.compileSdkVersion : 35
+    defaultConfig {
+        minSdkVersion project.hasProperty('minSdkVersion') ? rootProject.ext.minSdkVersion : 23
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+repositories {
+    google()
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':capacitor-android')
+    // Check https://docs.tapsell.ir for the latest Tapsell Plus version
+    implementation 'ir.tapsell.plus:tapsell-plus-sdk-android:2.2.6'
+}

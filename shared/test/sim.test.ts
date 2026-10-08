@@ -1,0 +1,99 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  createGame, step, botInput, createBrain, FIGHTERS, STAGES, Btn, cloneState,
+  encodeFighters, applyFighters, newProfile, applyMatch, buyItem, grantIap, claimPass, passTier, PASS_XP_PER_TIER,
+  type MatchConfig,
+} from '../src/index.ts';
+
+function cfg(chars: string[], stage = 'rooftop', stocks = 3): MatchConfig {
+  return { stageId: stage, stocks, timeLimit: 0, teams: false, players: chars.map((c, i) => ({ charId: c, skin: 0, team: i, name: 'P' + i })) };
+}
+
+test('bot vs bot matches finish on every stage with every fighter', () => {
+  for (const stage of STAGES) {
+    for (let i = 0; i < FIGHTERS.length; i++) {
+      const a = FIGHTERS[i].id, b = FIGHTERS[(i + 1) % FIGHTERS.length].id;
+      const g = createGame(cfg([a, b], stage.id, 2));
+      const brains = [createBrain(9, 1 + i), createBrain(9, 99 + i)];
+      let f = 0;
+      while (!g.over && f < 60 * 60 * 6) {
+        step(g, brains.map((br, s) => botInput(g, s, br)));
+        f++;
+        for (const x of g.fighters) {
+          assert.ok(Number.isFinite(x.x) && Number.isFinite(x.y), `NaN position ${x.charId} ${x.action}`);
+        }
+      }
+      assert.ok(g.over, `match ${a} vs ${b} on ${stage.id} did not finish (frame ${f})`);
+    }
+  }
+});
+
+test('4-player FFA finishes', () => {
+  const g = createGame(cfg(['blaze', 'boulder', 'pip', 'kira'], 'bazaar', 2));
+  const brains = [0, 1, 2, 3].map((i) => createBrain(7, i + 5));
+  let f = 0;
+  while (!g.over && f < 60 * 60 * 8) { step(g, brains.map((br, s) => botInput(g, s, br))); f++; }
+  assert.ok(g.over);
+});
+
+test('forward smash KOs a mid-weight from centre around 90-170%', () => {
+  const results: number[] = [];
+  for (const pct of [60, 80, 100, 120, 140, 160, 180]) {
+    const g = createGame(cfg(['blaze', 'blaze'], 'dojo'));
+    g.fighters[0].x = 0; g.fighters[1].x = 50; g.fighters[0].facing = 1;
+    g.fighters[1].damage = pct;
+    for (let i = 0; i < 200; i++) step(g, [0, 0]);
+    step(g, [Btn.STRONG, 0]);
+    let ko = false;
+    for (let i = 0; i < 300; i++) { step(g, [0, 0]); if (g.fighters[1].stocks < 3) { ko = true; break; } }
+    if (ko) results.push(pct);
+  }
+  const first = results[0];
+  assert.ok(first !== undefined && first >= 80 && first <= 170, `fsmash first KO at ${first}`);
+});
+
+test('ground jump and double jump work', () => {
+  const g = createGame(cfg(['blaze', 'boulder']));
+  for (let i = 0; i < 200; i++) step(g, [0, 0]);
+  assert.ok(g.fighters[0].grounded);
+  step(g, [Btn.JUMP, 0]);
+  for (let i = 0; i < 6; i++) step(g, [Btn.JUMP, 0]);
+  assert.ok(!g.fighters[0].grounded && g.fighters[0].vy < 0);
+  for (let i = 0; i < 20; i++) step(g, [0, 0]);
+  const before = g.fighters[0].jumps;
+  step(g, [Btn.JUMP, 0]);
+  assert.equal(g.fighters[0].jumps, before - 1);
+});
+
+test('state encoding round-trips fighters', () => {
+  const g = createGame(cfg(['blaze', 'volt']));
+  for (let i = 0; i < 250; i++) step(g, [Btn.RIGHT, Btn.LEFT | Btn.ATTACK]);
+  const c = cloneState(g);
+  const enc = JSON.parse(JSON.stringify(encodeFighters(g.fighters)));
+  for (const f of c.fighters) { f.x = 999; f.action = 'dead'; }
+  applyFighters(c.fighters, enc);
+  assert.equal(Math.round(c.fighters[0].x), Math.round(g.fighters[0].x));
+  assert.equal(c.fighters[1].action, g.fighters[1].action);
+});
+
+test('economy: rewards, shop, iap, pass', () => {
+  const p = newProfile('u1', 'Tester', Date.UTC(2026, 9, 8));
+  const coins0 = p.coins;
+  const r = applyMatch(p, { matchId: 'm1', mode: 'casual', won: true, placement: 1, players: 2, kos: 3, falls: 1, dmg: 250, smashKOs: 1, maxCombo: 3, fighter: 'blaze', durationSec: 120 }, Date.UTC(2026, 9, 8));
+  assert.ok(r.firstWin && r.coins > 100);
+  assert.equal(p.coins, coins0 + r.coins);
+  assert.deepEqual(buyItem(p, 'fighter:zephyr:gems'), { ok: false, reason: 'funds' });
+  grantIap(p, 'gems_500');
+  assert.ok(buyItem(p, 'fighter:zephyr:gems').ok);
+  assert.ok(p.fighters.includes('zephyr'));
+  assert.deepEqual(buyItem(p, 'fighter:zephyr:coins'), { ok: false, reason: 'owned' });
+  p.pass.xp = PASS_XP_PER_TIER * 5;
+  assert.equal(passTier(p), 5);
+  assert.ok(claimPass(p, 1, false));
+  assert.equal(claimPass(p, 1, false), null);
+  assert.equal(claimPass(p, 5, true), null);
+  grantIap(p, 'season_pass');
+  const pr = claimPass(p, 5, true);
+  assert.ok(pr?.reward.skin);
+});

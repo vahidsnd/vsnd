@@ -1,0 +1,31 @@
+apply plugin: 'com.android.library'
+
+android {
+    namespace "ir.neonbrawl.myket"
+    compileSdk project.hasProperty('compileSdkVersion') ? rootProject.ext.compileSdkVersion : 35
+    defaultConfig {
+        minSdkVersion project.hasProperty('minSdkVersion') ? rootProject.ext.minSdkVersion : 23
+        // Required by the Myket billing client (see Myket developer docs)
+        manifestPlaceholders = [
+            marketApplicationId: "ir.mservices.market",
+            marketBindAddress  : "ir.mservices.market.InAppBillingService.BIND",
+            marketPermission   : "ir.mservices.market.BILLING"
+        ]
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+repositories {
+    google()
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+    implementation project(':capacitor-android')
+    // Check https://myket.ir/kb/pages/in-app-billing for the latest version
+    implementation 'com.github.myketstore:myket-billing-client:1.6'
+}
