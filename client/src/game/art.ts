@@ -185,8 +185,12 @@ export function drawFighter(ctx: CanvasRenderingContext2D, f: FighterState, skin
   const m = f.action === 'attack' && f.move ? def.moves[f.move] : null;
   const charging = !!(m?.charge && f.charge > 0 && f.af === m.charge.frame);
   if (charging) {
-    ctx.shadowColor = skin.glow;
-    ctx.shadowBlur = 18 + Math.sin(o.time * 40) * 8;
+    // pulsing aura instead of a (slow) blur shadow
+    ctx.save();
+    ctx.globalAlpha *= 0.35 + 0.25 * Math.sin(o.time * 40);
+    ctx.fillStyle = skin.glow;
+    ctx.beginPath(); ctx.ellipse(0, -h * 0.5, w * 0.95, h * 0.68, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
   }
 
   // swooshes behind body
@@ -200,8 +204,6 @@ export function drawFighter(ctx: CanvasRenderingContext2D, f: FighterState, skin
   drawLimb(ctx, pose.ff, false, def, skin, false, pose.lead === 'ff');
   if (def.look.body === 'ninja') drawSword(ctx, pose.hf, pose.sword ?? -0.6, skin, f.action === 'attack');
   drawLimb(ctx, pose.hf, true, def, skin, false, pose.lead === 'hf');
-
-  ctx.shadowBlur = 0;
   ctx.restore();
 
   // shield bubble (not rotated)
@@ -259,7 +261,14 @@ function drawLimb(ctx: CanvasRenderingContext2D, p: V, hand: boolean, def: Fight
   } else {
     ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
   }
-  if (lead) { ctx.shadowColor = skin.glow; ctx.shadowBlur = 14; }
+  if (lead) {
+    ctx.save(); ctx.globalAlpha *= 0.45; ctx.fillStyle = skin.glow;
+    ctx.beginPath(); ctx.arc(p.x, p.y, r * 1.9, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    ctx.beginPath();
+    if (def.look.body === 'bird' && hand) ctx.ellipse(p.x, p.y, r * 1.6, r * 0.8, -0.5, 0, Math.PI * 2);
+    else if (!hand) ctx.ellipse(p.x, p.y - r * 0.5, r * 1.25, r * 0.8, 0, 0, Math.PI * 2);
+    else ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+  }
   ctx.fill(); ctx.stroke();
   ctx.restore();
 }
@@ -270,11 +279,13 @@ function drawSword(ctx: CanvasRenderingContext2D, hand: V, ang: number, skin: Fi
   ctx.rotate(ang);
   ctx.lineWidth = 3.5;
   ctx.fillStyle = active ? '#ffffff' : '#dfe8ff';
-  if (active) { ctx.shadowColor = skin.glow; ctx.shadowBlur = 16; }
+  if (active) {
+    ctx.save(); ctx.globalAlpha *= 0.5; ctx.strokeStyle = skin.glow; ctx.lineWidth = 12;
+    ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(58, 0); ctx.stroke(); ctx.restore();
+  }
   ctx.beginPath();
   ctx.moveTo(4, -3); ctx.lineTo(52, -2); ctx.lineTo(60, 0); ctx.lineTo(52, 3); ctx.lineTo(4, 3); ctx.closePath();
   ctx.fill(); ctx.stroke();
-  ctx.shadowBlur = 0;
   ctx.fillStyle = skin.second;
   ctx.fillRect(-2, -7, 6, 14); ctx.strokeRect(-2, -7, 6, 14);
   ctx.restore();
@@ -350,7 +361,7 @@ function drawBody(ctx: CanvasRenderingContext2D, def: FighterDef, skin: FighterD
       ctx.fillStyle = shade(main, -0.2);
       roundRect(ctx, -w * 0.3, -h * 1.0, w * 0.62, h * 0.26, 10); ctx.fill(); ctx.stroke();
       // cracks
-      ctx.save(); ctx.strokeStyle = glow; ctx.shadowColor = glow; ctx.shadowBlur = 10; ctx.lineWidth = 3;
+      ctx.save(); ctx.strokeStyle = glow;  ctx.lineWidth = 3;
       ctx.beginPath(); ctx.moveTo(-w * 0.2, -h * 0.7); ctx.lineTo(-w * 0.05, -h * 0.55); ctx.lineTo(-w * 0.18, -h * 0.4); ctx.lineTo(0, -h * 0.25);
       ctx.moveTo(w * 0.25, -h * 0.65); ctx.lineTo(w * 0.15, -h * 0.5); ctx.stroke();
       // glowing eye slit
@@ -381,20 +392,20 @@ function drawBody(ctx: CanvasRenderingContext2D, def: FighterDef, skin: FighterD
       roundRect(ctx, -w * 0.4, -h * 0.55, w * 0.8, h * 0.48, 10); ctx.fill(); ctx.stroke();
       ctx.fillStyle = second;
       roundRect(ctx, -w * 0.18, -h * 0.45, w * 0.36, h * 0.2, 5); ctx.fill(); ctx.stroke();
-      ctx.save(); ctx.fillStyle = glow; ctx.shadowColor = glow; ctx.shadowBlur = 10;
+      ctx.save(); ctx.fillStyle = glow; 
       ctx.beginPath(); ctx.arc(0, -h * 0.35, 4, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       // head
       ctx.fillStyle = main;
       roundRect(ctx, -w * 0.45, -h * 1.0, w * 0.9, h * 0.42, 12); ctx.fill(); ctx.stroke();
       ctx.fillStyle = second;
       roundRect(ctx, -w * 0.25, -h * 0.92, w * 0.66, h * 0.24, 8); ctx.fill(); ctx.stroke();
-      ctx.save(); ctx.fillStyle = glow; ctx.shadowColor = glow; ctx.shadowBlur = 12;
+      ctx.save(); ctx.fillStyle = glow; 
       if (pose.eyes === 'hurt') { ctx.font = 'bold 14px monospace'; ctx.fillText('x x', -w * 0.1, -h * 0.75); }
       else { const eh = pose.eyes === 'closed' ? 2 : 8; ctx.fillRect(-w * 0.08, -h * 0.84 + (8 - eh) / 2, 7, eh); ctx.fillRect(w * 0.16, -h * 0.84 + (8 - eh) / 2, 7, eh); }
       ctx.restore();
       // antenna
       ctx.beginPath(); ctx.moveTo(0, -h * 1.0); ctx.lineTo(-4, -h * 1.0 - 14); ctx.stroke();
-      ctx.save(); ctx.fillStyle = glow; ctx.shadowColor = glow; ctx.shadowBlur = 10 + Math.sin(time * 8) * 6;
+      ctx.save(); ctx.fillStyle = glow; 
       ctx.beginPath(); ctx.arc(-4, -h * 1.0 - 16, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
       highlight(ctx, -w * 0.25, -h * 0.9, 8, 4);
       break;
@@ -472,7 +483,8 @@ export function drawProjectile(ctx: CanvasRenderingContext2D, p: ProjectileState
         ctx.globalAlpha = 0.25 * i;
         ctx.beginPath(); ctx.arc(-p.vx * i * 1.2, -p.vy * i, r * (1 - i * 0.12), 0, Math.PI * 2); ctx.fill();
       }
-      ctx.globalAlpha = 1; ctx.shadowColor = '#ff8a00'; ctx.shadowBlur = 18;
+      ctx.globalAlpha = 1; 
+      ctx.fillStyle = '#ff8a00'; ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(0, 0, r * 1.7, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
       ctx.fillStyle = '#ffe066'; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       break;
     }
@@ -491,12 +503,13 @@ export function drawProjectile(ctx: CanvasRenderingContext2D, p: ProjectileState
     }
     case 'feather': {
       ctx.rotate(Math.atan2(p.vy, p.vx));
-      ctx.fillStyle = glow; ctx.shadowColor = glow; ctx.shadowBlur = 10;
+      ctx.fillStyle = glow; 
       ctx.beginPath(); ctx.ellipse(0, 0, r * 1.8, r * 0.6, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       break;
     }
     case 'orb': {
-      ctx.shadowColor = glow; ctx.shadowBlur = 24;
+      
+      ctx.fillStyle = glow; ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(0, 0, r * 1.8, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
       ctx.fillStyle = '#e8fbff'; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = glow; ctx.lineWidth = 2.5;
       for (let i = 0; i < 4; i++) {
@@ -514,7 +527,7 @@ export function drawProjectile(ctx: CanvasRenderingContext2D, p: ProjectileState
       if (p.kind === 'mine') ctx.ellipse(0, r * 0.3, r * 1.2, r * 0.6, 0, 0, Math.PI * 2); else ctx.arc(0, 0, r, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
       ctx.fillStyle = blink || p.kind === 'bomb' ? '#ff2e63' : '#5a1530';
-      ctx.shadowColor = '#ff2e63'; ctx.shadowBlur = blink ? 14 : 0;
+      
       ctx.beginPath(); ctx.arc(p.kind === 'mine' ? 0 : r * 0.5, p.kind === 'mine' ? 0 : -r * 0.8, 4, 0, Math.PI * 2); ctx.fill();
       break;
     }

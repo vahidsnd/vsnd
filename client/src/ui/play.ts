@@ -300,6 +300,7 @@ function gameScreen(session: Session, o: GameOpts): Screen {
     if (!running) return;
     raf = requestAnimationFrame(frame);
     acc += Math.min(100, now - last);
+    renderer.noteFrame(now - last);
     last = now;
     const stepMs = 1000 / TICK_RATE;
     let n = 0;

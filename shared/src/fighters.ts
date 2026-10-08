@@ -215,6 +215,7 @@ export const FIGHTERS: FighterDef[] = [
   }),
 ];
 
+const BY_ID = new Map(FIGHTERS.map((f) => [f.id, f]));
 export function getFighter(id: string): FighterDef {
-  return FIGHTERS.find((f) => f.id === id) ?? FIGHTERS[0];
+  return BY_ID.get(id) ?? FIGHTERS[0];
 }

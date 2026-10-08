@@ -75,8 +75,9 @@ export const STAGES: StageDef[] = [
   },
 ];
 
+const BY_ID = new Map(STAGES.map((s) => [s.id, s]));
 export function getStage(id: string): StageDef {
-  return STAGES.find((s) => s.id === id) ?? STAGES[0];
+  return BY_ID.get(id) ?? STAGES[0];
 }
 
 export function platformPos(p: PlatformDef, frame: number): { x1: number; x2: number; y: number } {
