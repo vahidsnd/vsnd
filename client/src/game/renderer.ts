@@ -162,12 +162,15 @@ export class Renderer {
     // the HUD covers the bottom strip, keep the action above it
     const hud = this.hudHeight();
     const viewH = this.h - hud;
-    const padX = portrait ? 120 : 260, padY = portrait ? 150 : 190;
+    const padX = portrait ? 90 : 260, padY = portrait ? 130 : 190;
     const bw = maxX - minX + padX * 2, bh = maxY - minY + padY * 2;
     const base = this.baseScale;
     let z = Math.min(this.w / bw, viewH / bh);
-    z = Math.max((portrait ? 0.5 : 0.42) * base, Math.min((portrait ? 1.05 : 1.25) * base, z));
-    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2 + (hud / 2) / z;
+    z = Math.max((portrait ? 0.64 : 0.42) * base, Math.min((portrait ? 1.1 : 1.25) * base, z));
+    const cx = (minX + maxX) / 2;
+    // portrait: put the action at ~60% of the arena height (more air above, less island below)
+    const anchor = portrait ? 0.6 : 0.5;
+    const cy = (minY + maxY) / 2 - (anchor * viewH - this.h / 2) / z;
     const k = instant ? 1 : 0.08;
     this.cam.x += (cx - this.cam.x) * k;
     this.cam.y += (cy - this.cam.y) * k;

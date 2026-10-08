@@ -1,7 +1,7 @@
 # Neon Brawl — نئون براول
 
-Online 2D platform fighter (Smash-style) for **Myket** and **Google Play**, with ranked matchmaking, a full economy, AdMob/Tapsell ads and in-app purchases.
-Full game design document (Persian): **[docs/GDD.md](docs/GDD.md)**.
+Online 2D platform fighter (Smash-style, **portrait**) for **Myket** and **Google Play**, with ranked matchmaking, a full economy, AdMob/Tapsell ads and in-app purchases.
+Full game design document (Persian): **[docs/GDD.md](docs/GDD.md)** · Handoff / release checklist: **[docs/HANDOFF.md](docs/HANDOFF.md)**.
 
 ```
 shared/   deterministic game simulation, fighters, stages, AI, economy, ranking, net protocol (used by server AND client)
@@ -69,5 +69,5 @@ For store releases use the Capacitor project (`npm run android:myket` / `android
 | | |
 |---|---|
 | ![home](docs/screenshots/home.png) | ![online](docs/screenshots/online-match.png) |
-| ![ko](docs/screenshots/ko.png) | ![phone](docs/screenshots/phone-touch.png) |
+| ![results](docs/screenshots/results.png) | ![phone](docs/screenshots/phone-touch.png) |
 | ![shop](docs/screenshots/shop.png) | ![pass](docs/screenshots/pass.png) |

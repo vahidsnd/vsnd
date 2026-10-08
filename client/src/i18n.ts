@@ -143,6 +143,11 @@ const fa: Dict = {
   lose: 'باخت',
   playOnline: 'آنلاین',
   privacy: 'حریم خصوصی',
+  moveHint: 'برای حرکت بکش',
+  lbEmpty: 'هنوز کسی بازی رقابتی نکرده؛ اولین نفر باش!',
+  btnJump: 'پرش',
+  btnSpecial: 'ویژه',
+  btnAttack: 'ضربه',
 };
 
 const en: Dict = {
@@ -288,6 +293,11 @@ const en: Dict = {
   lose: 'Loss',
   playOnline: 'Online',
   privacy: 'Privacy',
+  moveHint: 'drag to move',
+  lbEmpty: 'No ranked players yet — be the first!',
+  btnJump: 'JUMP',
+  btnSpecial: 'SPECIAL',
+  btnAttack: 'ATTACK',
 };
 
 let current: Dict = fa;

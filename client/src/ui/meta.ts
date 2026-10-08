@@ -34,7 +34,7 @@ export function fightersScreen(selected = backend.profile.selFighter): Screen {
   const grid = h('div', { class: 'fgrid' }, FIGHTERS.map((f) => {
     const own = p.fighters.includes(f.id);
     return h('button', { class: `fcard ${f.id === def.id ? 'sel' : ''} ${own ? '' : 'locked'}`, onclick: () => show(() => fightersScreen(f.id)) },
-      fighterCanvas(f.id, backend.selectedSkin(f.id), 84),
+      fighterCanvas(f.id, backend.selectedSkin(f.id), 76),
       h('b', {}, loc(f)),
       own ? (p.selFighter === f.id ? h('span', { class: 'tag ok' }, '✓') : null) : h('span', { class: 'tag' }, '🔒'));
   }));
@@ -82,17 +82,19 @@ export function fightersScreen(selected = backend.profile.selFighter): Screen {
   }
 
   const detail = h('div', { class: 'fdetail' },
-    h('div', { class: 'fd-art' }, fighterCanvas(def.id, curSkin, 220)),
-    h('div', { class: 'fd-info' },
-      h('h2', {}, loc(def), ' ', h('small', {}, isFa() ? def.titleFa : def.title)),
-      stats,
-      h('ul', { class: 'moves' }, (isFa() ? MOVES[def.id].fa : MOVES[def.id].en).map((m) => h('li', {}, m))),
-      skins,
-      h('div', { class: 'row' }, actions),
+    h('div', { class: 'fd-top' },
+      h('div', { class: 'fd-art' }, fighterCanvas(def.id, curSkin, 130)),
+      h('div', { class: 'fd-info' },
+        h('h2', {}, loc(def), h('small', {}, isFa() ? def.titleFa : def.title)),
+        stats,
+      ),
     ),
+    h('ul', { class: 'moves' }, (isFa() ? MOVES[def.id].fa : MOVES[def.id].en).map((m) => h('li', {}, m))),
+    skins,
+    h('div', { class: 'fd-actions' }, actions),
   );
 
-  return { el: h('div', { class: 'page fighters' }, topBar({ back: home, title: t('fighters') }), h('div', { class: 'split' }, grid, detail)) };
+  return { el: h('div', { class: 'page fighters' }, topBar({ back: home, title: t('fighters') }), h('div', { class: 'scroll' }, detail, grid)) };
 }
 
 // ============================================================================================
@@ -103,7 +105,7 @@ type ShopTab = 'featured' | 'gems' | 'fighters' | 'skins' | 'coins' | 'crates';
 export function shopScreen(tab: ShopTab = 'featured'): Screen {
   const tabs: ShopTab[] = ['featured', 'gems', 'fighters', 'skins', 'coins', 'crates'];
   const label: Record<ShopTab, string> = { featured: t('featured'), gems: t('gemsTab'), fighters: t('fightersTab'), skins: t('skinsTab'), coins: t('coinsTab'), crates: t('crates') };
-  const body = h('div', { class: 'shop-body' }, renderShopTab(tab));
+  const body = h('div', { class: 'scroll' }, renderShopTab(tab));
   const el = h('div', { class: 'page shop' },
     topBar({ back: home, title: t('shop') }),
     h('div', { class: 'tabs' }, tabs.map((x) => h('button', { class: `tab ${x === tab ? 'on' : ''}`, onclick: () => show(() => shopScreen(x)) }, label[x]))),
@@ -231,8 +233,8 @@ export function passScreen(): Screen {
   const tier = passTier(p);
   const into = p.pass.xp - tier * PASS_XP_PER_TIER;
   const rewardView = (r: PassReward): Child => {
-    if (r.skin) { const s = getFighterBySkin(r.skin); return s ? fighterCanvas(s.f, s.idx, 64) : '🎨'; }
-    if (r.crate) return h('div', { class: 'big-emoji' }, '🎁');
+    if (r.skin) { const s = getFighterBySkin(r.skin); return s ? fighterCanvas(s.f, s.idx, 50) : '🎨'; }
+    if (r.crate) return h('div', { style: { fontSize: '28px' } }, '🎁');
     if (r.gems) return h('div', {}, icon('gem'), num(r.gems));
     return h('div', {}, icon('coin'), num(r.coins ?? 0));
   };
@@ -247,7 +249,7 @@ export function passScreen(): Screen {
     rewardReveal(t('youGot'), items);
     show(passScreen);
   };
-  const cols = [];
+  const rows: HTMLElement[] = [];
   for (let i = 1; i <= PASS_TIERS; i++) {
     const reached = i <= tier;
     const cell = (premium: boolean) => {
@@ -258,21 +260,24 @@ export function passScreen(): Screen {
         locked ? h('span', { class: 'lock' }, '🔒') : claimed ? h('span', { class: 'check' }, '✓') :
           reached ? h('button', { class: 'btn small primary', onclick: () => claim(i, premium) }, t('claim')) : null);
     };
-    cols.push(h('div', { class: `pcol ${reached ? 'reached' : ''}` }, h('div', { class: 'pnum' }, num(i)), cell(false), cell(true)));
+    rows.push(h('div', { class: `prow ${reached ? 'reached' : ''}` }, h('div', { class: 'pnum' }, num(i)), cell(false), cell(true)));
   }
   const prod = IAP_PRODUCTS.find((x) => x.id === 'season_pass')!;
+  const list = h('div', { class: 'scroll' },
+    h('div', { class: 'prow head' }, h('div', {}, t('tier')), h('div', {}, t('free')), h('div', {}, t('premium'))),
+    rows);
   const el = h('div', { class: 'page pass' },
-    topBar({ back: home, title: `${t('pass')} · ${t('newSeason')} ${num(p.pass.season)}` }),
+    topBar({ back: home, title: t('pass') }),
     h('div', { class: 'pass-head' },
-      h('div', {}, h('b', {}, `${t('tier')} ${num(tier)}/${num(PASS_TIERS)}`),
-        h('div', { class: 'xpbar wide' }, h('div', { style: { width: `${tier >= PASS_TIERS ? 100 : (into / PASS_XP_PER_TIER) * 100}%` } })),
+      h('div', { class: 'row space' }, h('b', {}, `${t('newSeason')} ${num(p.pass.season)} · ${t('tier')} ${num(tier)}/${num(PASS_TIERS)}`),
         h('small', { class: 'muted' }, `${t('seasonEnds')}: ${duration(seasonEndsAt(Date.now()) - Date.now())}`)),
-      p.pass.premium ? h('span', { class: 'tag ok' }, t('premium') + ' ✓')
-        : h('button', { class: 'btn gold big', onclick: () => buyIap('season_pass', () => show(passScreen)) }, t('unlockPremium'), ' · ', billing.price(prod)),
+      h('div', { class: 'xpbar wide' }, h('div', { style: { width: `${tier >= PASS_TIERS ? 100 : (into / PASS_XP_PER_TIER) * 100}%` } })),
+      p.pass.premium ? h('span', { class: 'tag ok center' }, t('premium') + ' ✓')
+        : h('button', { class: 'btn gold wide', onclick: () => buyIap('season_pass', () => show(passScreen)) }, t('unlockPremium'), ' · ', billing.price(prod)),
     ),
-    h('div', { class: 'ptrack' }, h('div', { class: 'plabels' }, h('div', {}), h('div', {}, t('free')), h('div', {}, t('premium'))), h('div', { class: 'pscroll' }, cols)),
+    list,
   );
-  requestAnimationFrame(() => { const sc = el.querySelector('.pscroll') as HTMLElement; const target = sc?.children[Math.max(0, tier - 2)] as HTMLElement; target?.scrollIntoView({ inline: 'start', block: 'nearest' }); });
+  requestAnimationFrame(() => { const target = rows[Math.max(0, tier - 1)]; if (target && tier > 2) list.scrollTop = target.offsetTop - 60; });
   return { el };
 }
 
@@ -317,7 +322,7 @@ export function questsScreen(): Screen {
   });
   const el = h('div', { class: 'page quests' },
     topBar({ back: home, title: t('quests') }),
-    h('div', { class: 'quests-body' },
+    h('div', { class: 'scroll' },
       h('div', { class: 'row space' }, h('h3', {}, t('dailyQuests')), h('small', { class: 'muted' }, `${t('resetIn')} ${duration(nextReset - Date.now())}`)),
       cards,
       h('button', { class: 'btn ghost', onclick: () => import('./home.ts').then((m) => m.loginPopup()) }, '📅 ', t('dailyLogin'), p.login.claimed ? ' ✓' : ' •'),
@@ -332,24 +337,25 @@ export function questsScreen(): Screen {
 export function leaderboardScreen(): Screen {
   const p = backend.profile;
   const tier = tierFor(p.rank.mmr);
-  const list = h('div', { class: 'lb-list' }, h('div', { class: 'muted center' }, '…'));
+  const list = h('div', { class: 'scroll' }, h('div', { class: 'muted center' }, '…'));
   backend.leaderboard().then((rows) => {
     list.innerHTML = '';
-    if (!rows.length) { list.append(h('div', { class: 'muted center' }, backend.online ? '—' : t('noLeaderboard'))); return; }
+    if (!rows.length) { list.append(h('div', { class: 'muted center' }, backend.online ? t('lbEmpty') : t('noLeaderboard'))); return; }
     for (const r of rows) {
       const ti = tierFor(r.mmr);
       list.append(h('div', { class: `lb-row ${r.id === p.id ? 'me' : ''}` },
         h('span', { class: 'pos' }, r.pos <= 3 ? ['🥇', '🥈', '🥉'][r.pos - 1] : num(r.pos)),
         fighterCanvas(r.fighter, 0, 40),
-        h('b', {}, r.name), h('span', { style: { color: ti.tier.color } }, isFa() ? ti.tier.nameFa : ti.tier.name),
-        h('span', {}, num(r.mmr)), h('small', { class: 'muted' }, `${num(r.wins)}${t('wins')} / ${num(r.losses)}${t('losses')}`)));
+        h('div', { class: 'who' }, h('b', {}, r.name),
+          h('small', {}, h('span', { style: { color: ti.tier.color } }, isFa() ? ti.tier.nameFa : ti.tier.name), ` · ${num(r.wins)}${t('wins')} / ${num(r.losses)}${t('losses')}`)),
+        h('b', {}, num(r.mmr))));
     }
   }).catch(() => { list.innerHTML = ''; list.append(h('div', { class: 'muted center' }, t('noLeaderboard'))); });
   const el = h('div', { class: 'page leaderboard' },
     topBar({ back: home, title: t('leaderboard') }),
-    h('div', { class: 'lb-me', style: { borderColor: tier.tier.color } },
+    h('div', { style: { padding: '0 var(--pad) 8px' } }, h('div', { class: 'lb-me', style: { borderColor: tier.tier.color } },
       h('b', { style: { color: tier.tier.color } }, isFa() ? tier.tier.nameFa : tier.tier.name),
-      h('span', {}, `${t('mmr')}: ${num(p.rank.mmr)} · ${t('wins')} ${num(p.rank.wins)} · ${t('losses')} ${num(p.rank.losses)}`)),
+      h('span', {}, `${t('mmr')}: ${num(p.rank.mmr)} · ${t('wins')} ${num(p.rank.wins)} · ${t('losses')} ${num(p.rank.losses)}`))),
     list);
   return { el };
 }
@@ -364,7 +370,7 @@ export function settingsScreen(): Screen {
     h('label', { class: 'toggle' }, h('span', {}, label), h('input', { type: 'checkbox', checked: on, onchange: (e: Event) => fn((e.target as HTMLInputElement).checked) }));
   const el = h('div', { class: 'page settings' },
     topBar({ back: home, title: t('settings') }),
-    h('div', { class: 'settings-body' },
+    h('div', { class: 'scroll' },
       h('div', { class: 'field' }, h('span', {}, t('name')), nameIn,
         h('button', { class: 'btn small primary', onclick: () => { backend.saveProfile({ name: nameIn.value.trim() || p.name }); toast('✓', 'ok'); } }, t('save'))),
       h('div', { class: 'field' }, h('span', {}, t('language')),

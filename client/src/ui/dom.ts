@@ -61,7 +61,7 @@ export function topBar(opts: { back?: () => void; title?: string } = {}) {
   const tier = tierFor(p.rank.mmr);
   const coins = h('span', { class: 'cur' }, icon('coin'), num(p.coins));
   const gems = h('span', { class: 'cur' }, icon('gem'), num(p.gems));
-  const bar = h('div', { class: 'topbar' },
+  const bar = h('div', { class: opts.title ? 'topbar titled' : 'topbar' },
     opts.back ? h('button', { class: 'btn icon back', onclick: opts.back }, isFa() ? '→' : '←') : null,
     opts.title ? h('h2', { class: 'title' }, opts.title) : h('div', { class: 'player-chip' },
       h('div', { class: 'lvl' }, num(p.level)),
@@ -146,22 +146,41 @@ export function getFighterBySkin(skinId: string): { f: string; idx: number } | n
   return null;
 }
 
-/** Small animated canvas showing a fighter (menus). */
+// One shared ~30 fps ticker for all animated menu previews (instead of one rAF loop per canvas).
+const animated = new Set<(now: number) => boolean>();
+let tickerOn = false;
+let lastTick = 0;
+function tick(now: number) {
+  if (now - lastTick >= 33) {
+    lastTick = now;
+    for (const fn of [...animated]) if (!fn(now)) animated.delete(fn);
+  }
+  if (animated.size) requestAnimationFrame(tick); else tickerOn = false;
+}
+
+/** Fighter preview for menus. Small thumbnails are drawn once; big ones (≥110px) animate. */
 export function fighterCanvas(charId: string, skin: number, size: number, action: 'idle' | 'air' | 'run' = 'idle') {
-  const c = h('canvas', { class: 'fcanvas', width: size * 2, height: size * 2, style: { width: `${size}px`, height: `${size}px` } });
+  const q = Math.min(2, window.devicePixelRatio || 1);
+  const c = h('canvas', { class: 'fcanvas', width: Math.round(size * q), height: Math.round(size * q), style: { width: `${size}px`, height: `${size}px` } });
   const ctx = c.getContext('2d')!;
   const def = getFighter(charId);
-  const scale = (size * 2 * 0.62) / (def.stats.h + 30);
-  let raf = 0;
+  const scale = (c.width * 0.62) / (def.stats.h + 30);
   const t0 = performance.now();
-  const loop = () => {
-    if (!c.isConnected && performance.now() - t0 > 1000) return;
+  const draw = (now: number) => {
     ctx.clearRect(0, 0, c.width, c.height);
-    previewFighter(ctx, charId, skin, c.width / 2, c.height * 0.84, scale, (performance.now() - t0) / 1000, action);
-    raf = requestAnimationFrame(loop);
+    previewFighter(ctx, charId, skin, c.width / 2, c.height * 0.84, scale, (now - t0) / 1000, action);
   };
-  loop();
-  (c as any)._stop = () => cancelAnimationFrame(raf);
+  draw(t0);
+  if (size >= 110) {
+    let seen = false, waited = 0;
+    animated.add((now) => {
+      if (!c.isConnected) { if (seen || ++waited > 60) return false; return true; }
+      seen = true;
+      draw(now);
+      return true;
+    });
+    if (!tickerOn) { tickerOn = true; requestAnimationFrame(tick); }
+  }
   return c;
 }
 

@@ -17,50 +17,49 @@ export function homeScreen(): Screen {
   const passReady = Math.max(0, passTier(p) - p.pass.free.length) + (p.pass.premium ? Math.max(0, passTier(p) - p.pass.prem.length) : 0);
   const badge = (n: number) => (n > 0 ? h('span', { class: 'badge' }, num(n)) : null);
 
-  const side = h('nav', { class: 'side' },
-    h('button', { class: 'side-btn', onclick: () => go('fighters') }, h('span', { class: 'si' }, '🥊'), t('fighters')),
-    h('button', { class: 'side-btn', onclick: () => go('shop') }, h('span', { class: 'si' }, '🛒'), t('shop')),
-    h('button', { class: 'side-btn', onclick: () => go('pass') }, h('span', { class: 'si' }, '🎟'), t('pass'), badge(passReady)),
-    h('button', { class: 'side-btn', onclick: () => go('quests') }, h('span', { class: 'si' }, '📜'), t('quests'), badge(questsReady + (p.login.claimed ? 0 : 1))),
-    h('button', { class: 'side-btn', onclick: () => go('leaderboard') }, h('span', { class: 'si' }, '🏆'), t('leaderboard')),
-    h('button', { class: 'side-btn', onclick: () => go('settings') }, h('span', { class: 'si' }, '⚙'), t('settings')),
-  );
-
-  const hero = h('div', { class: 'hero' },
-    h('div', { class: 'hero-glow' }),
-    fighterCanvas(def.id, skin, 260),
-    h('div', { class: 'hero-name' }, loc(def), h('small', {}, isFa() ? def.titleFa : def.title)),
-    h('button', { class: 'btn small ghost', onclick: () => go('fighters') }, t('fighters')),
-    h('div', { class: 'rank-card', style: { borderColor: tier.tier.color } },
-      h('b', { style: { color: tier.tier.color } }, `${isFa() ? tier.tier.nameFa : tier.tier.name} ${tier.division ? ['', 'I', 'II', 'III'][tier.division] : ''}`),
-      h('span', {}, `${num(p.rank.mmr)} · ${num(p.rank.wins)}${t('wins')} ${num(p.rank.losses)}${t('losses')}`),
-      h('div', { class: 'xpbar' }, h('div', { style: { width: `${tier.progress * 100}%`, background: tier.tier.color } })),
-    ),
+  const nav = (icon: string, label: string, fn: () => void, n = 0) =>
+    h('button', { class: 'nav-btn', onclick: fn }, h('span', { class: 'si' }, icon), label, badge(n));
+  const bottomNav = h('nav', { class: 'bottom-nav' },
+    nav('🥊', t('fighters'), () => go('fighters')),
+    nav('🛒', t('shop'), () => go('shop')),
+    nav('🎟', t('pass'), () => go('pass'), passReady),
+    nav('📜', t('quests'), () => go('quests'), questsReady + (p.login.claimed ? 0 : 1)),
+    nav('🏆', t('leaderboard'), () => go('leaderboard')),
+    nav('⚙', t('settings'), () => go('settings')),
   );
 
   const online = backend.online;
+  const hero = h('div', { class: 'hero' },
+    h('div', { class: 'hero-glow' }),
+    (() => { const c = fighterCanvas(def.id, skin, 180); c.addEventListener('click', () => go('fighters')); return c; })(),
+    h('div', { class: 'hero-name' }, loc(def), h('small', {}, isFa() ? def.titleFa : def.title)),
+    h('div', { class: 'rank-pill', style: { borderColor: tier.tier.color } },
+      h('b', { style: { color: tier.tier.color } }, `${isFa() ? tier.tier.nameFa : tier.tier.name} ${tier.division ? ['', 'I', 'II', 'III'][tier.division] : ''}`),
+      h('span', {}, `${num(p.rank.mmr)} · ${num(p.rank.wins)}${t('wins')} ${num(p.rank.losses)}${t('losses')}`)),
+    h('div', { class: 'status' },
+      h('span', { class: online ? 'dot ok' : 'dot' }),
+      online ? `${t('online')}${net.online ? ` · ${num(net.online)} ${t('playersOnline')}` : ''}` : t('offline')),
+  );
+
   const mode = (cls: string, title: string, desc: string, fn: () => void, needOnline = false) =>
     h('button', { class: `mode ${cls} ${needOnline && !online ? 'disabled' : ''}`, onclick: () => (needOnline && !online ? toast(t('offline'), 'err') : fn()) },
       h('b', {}, title), h('span', {}, desc));
 
-  const modes = h('div', { class: 'modes' },
-    h('button', { class: `btn play ${online ? '' : 'offline'}`, onclick: () => (online ? queue('casual', '1v1') : cpu()) }, t('play'), h('small', {}, online ? t('quick') + ' 1v1' : t('vsCpu'))),
-    mode('m-ranked', t('ranked'), t('rankedDesc'), () => queue('ranked', '1v1'), true),
-    mode('m-quick', t('quick'), t('quickDesc'), () => pickFormat(), true),
-    mode('m-friends', t('friends'), t('friendsDesc'), () => import('./play.ts').then((m) => show(m.roomScreen)), true),
-    mode('m-cpu', t('vsCpu'), t('vsCpuDesc'), cpu),
-    mode('m-train', t('training'), t('trainingDesc'), () => import('./play.ts').then((m) => m.startTraining())),
-  );
-
-  const status = h('div', { class: 'status' },
-    online ? h('span', { class: 'dot ok' }) : h('span', { class: 'dot' }),
-    online ? `${t('online')}${net.online ? ` · ${num(net.online)} ${t('playersOnline')}` : ''}` : t('offline'),
-  );
-
   const el = h('div', { class: 'home' },
     topBar(),
-    h('div', { class: 'home-body' }, side, hero, modes),
-    status,
+    h('div', { class: 'home-main' },
+      hero,
+      h('button', { class: 'btn play', onclick: () => (online ? queue('casual', '1v1') : cpu()) }, t('play'), h('small', {}, online ? t('quick') + ' 1v1' : t('vsCpu'))),
+      h('div', { class: 'modes' },
+        mode('m-ranked', t('ranked'), t('rankedDesc'), () => queue('ranked', '1v1'), true),
+        mode('m-quick', t('quick'), t('quickDesc'), () => pickFormat(), true),
+        mode('m-friends', t('friends'), t('friendsDesc'), () => import('./play.ts').then((m) => show(m.roomScreen)), true),
+        mode('m-cpu', t('vsCpu'), t('vsCpuDesc'), cpu),
+        mode('m-train', t('training'), t('trainingDesc'), () => import('./play.ts').then((m) => m.startTraining())),
+      ),
+    ),
+    bottomNav,
+    p.noAds ? null : h('div', { class: 'ad-slot' }),
   );
 
   // popups: daily login, then starter offer
@@ -88,11 +87,10 @@ function pickFormat() {
   const pick = (f: QueueFormat) => { md.close(); queue('casual', f); };
   const md = modal(h('div', { class: 'pick' },
     h('h2', {}, t('quick')),
-    h('div', { class: 'row' },
-      h('button', { class: 'btn primary big', onclick: () => pick('1v1') }, '1 v 1'),
-      h('button', { class: 'btn primary big', onclick: () => pick('2v2') }, '2 v 2'),
-      h('button', { class: 'btn primary big', onclick: () => pick('ffa') }, t('ffa')),
-    )));
+    h('button', { class: 'btn primary big', onclick: () => pick('1v1') }, '1 v 1'),
+    h('button', { class: 'btn primary big', onclick: () => pick('2v2') }, '2 v 2'),
+    h('button', { class: 'btn primary big', onclick: () => pick('ffa') }, t('ffa')),
+  ));
 }
 
 export function loginPopup() {
@@ -106,7 +104,7 @@ export function loginPopup() {
   const m = modal(h('div', { class: 'login' },
     h('h2', { class: 'shine' }, t('dailyLogin')),
     h('div', { class: 'days' }, days),
-    h('button', { class: 'btn primary big', disabled: p.login.claimed, onclick: async () => {
+    h('button', { class: 'btn primary big wide', disabled: p.login.claimed, onclick: async () => {
       const r = await backend.claimLogin().catch(() => null);
       m.close();
       if (r) rewardReveal(t('dailyLogin'), [...(r.coins ? [{ kind: 'coin' as const, amount: r.coins }] : []), ...(r.gems ? [{ kind: 'gem' as const, amount: r.gems }] : [])]);
@@ -120,7 +118,7 @@ export function starterPopup() {
   const m = modal(h('div', { class: 'offer' },
     h('div', { class: 'ribbon' }, t('limited')),
     h('h2', { class: 'shine' }, t('starterTitle')),
-    h('div', { class: 'offer-art' }, fighterCanvas('zephyr', 0, 150), fighterCanvas('blaze', 1, 150)),
+    h('div', { class: 'offer-art' }, fighterCanvas('zephyr', 0, 120), fighterCanvas('blaze', 1, 120)),
     h('p', {}, t('starterDesc')),
     h('div', { class: 'badge-big' }, isFa() ? prod.badgeFa : prod.badge),
     h('button', { class: 'btn primary big', onclick: async () => {

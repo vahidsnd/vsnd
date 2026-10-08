@@ -85,7 +85,7 @@ export function matchmakingScreen(mode: 'ranked' | 'casual', format: QueueFormat
 // ============================================================================================
 export function roomScreen(): Screen {
   const p = backend.profile;
-  const body = h('div', { class: 'room-body' });
+  const body = h('div', { class: 'scroll' });
   const codeIn = h('input', { class: 'input code', placeholder: t('enterCode'), maxlength: 5 }) as HTMLInputElement;
   let room: RoomInfo | null = null;
 
@@ -134,7 +134,7 @@ export function roomScreen(): Screen {
 export function cpuSetupScreen(): Screen {
   const p = backend.profile;
   const st = { stage: STAGES[0].id, opponents: 1, level: Math.min(9, 2 + Math.floor(p.level / 3)), stocks: 3, teams: false, slots: ['cpu', 'cpu', 'cpu'] as string[] };
-  const body = h('div', { class: 'cpu-body' });
+  const body = h('div', { class: 'scroll cpu-body' });
   const render = () => {
     body.innerHTML = '';
     const pads = connectedPads();
@@ -146,12 +146,12 @@ export function cpuSetupScreen(): Screen {
           onclick: () => { if (locked) { toast(`${t('level')} ${num(s.unlock!)}`, 'err'); return; } st.stage = s.id; render(); } },
           h('b', {}, loc(s)), locked ? h('small', {}, `🔒 ${t('level')} ${num(s.unlock!)}`) : null);
       })),
-      h('div', { class: 'cpu-opts' },
-        h('div', {}, h('span', {}, t('opponents')), [1, 2, 3].map((n) => h('button', { class: `btn small ${st.opponents === n ? 'primary' : ''}`, onclick: () => { st.opponents = n; render(); } }, num(n)))),
-        h('div', {}, h('span', {}, t('difficulty')), h('input', { type: 'range', min: 1, max: 9, value: st.level, oninput: (e: Event) => { st.level = Number((e.target as HTMLInputElement).value); lvl.textContent = num(st.level); } }), (() => { const s = h('b', {}, num(st.level)); lvl = s; return s; })()),
-        h('div', {}, h('span', {}, t('stocks')), [1, 2, 3, 4, 5].map((n) => h('button', { class: `btn small ${st.stocks === n ? 'primary' : ''}`, onclick: () => { st.stocks = n; render(); } }, num(n)))),
+      h('div', { class: 'room-opts' },
+        h('div', { class: 'opt' }, h('span', {}, t('opponents')), [1, 2, 3].map((n) => h('button', { class: `btn small ${st.opponents === n ? 'primary' : ''}`, onclick: () => { st.opponents = n; render(); } }, num(n)))),
+        h('div', { class: 'opt' }, h('span', {}, t('difficulty')), h('input', { type: 'range', min: 1, max: 9, value: st.level, oninput: (e: Event) => { st.level = Number((e.target as HTMLInputElement).value); lvl.textContent = num(st.level); } }), (() => { const s = h('b', {}, num(st.level)); lvl = s; return s; })()),
+        h('div', { class: 'opt' }, h('span', {}, t('stocks')), [1, 2, 3, 4, 5].map((n) => h('button', { class: `btn small ${st.stocks === n ? 'primary' : ''}`, onclick: () => { st.stocks = n; render(); } }, num(n)))),
         st.opponents === 3 ? h('label', { class: 'toggle' }, h('span', {}, t('teams') + ' 2v2'), h('input', { type: 'checkbox', checked: st.teams, onchange: (e: Event) => { st.teams = (e.target as HTMLInputElement).checked; } })) : null,
-        pads.length ? h('div', {}, h('span', {}, '🎮'), Array.from({ length: st.opponents }, (_, i) =>
+        pads.length ? h('div', { class: 'opt' }, h('span', {}, '🎮'), Array.from({ length: st.opponents }, (_, i) =>
           h('button', { class: 'btn small', onclick: () => { const opts = ['cpu', ...pads.map((x) => 'pad' + x)]; st.slots[i] = opts[(opts.indexOf(st.slots[i]) + 1) % opts.length]; render(); } },
             `P${i + 2}: ${st.slots[i] === 'cpu' ? 'CPU' : '🎮' + st.slots[i].slice(3)}`))) : null,
       ),
@@ -232,11 +232,18 @@ function gameScreen(session: Session, o: GameOpts): Screen {
   inGame = true;
   (window as any).__session = session; // handy for QA / debugging from devtools
   const canvas = h('canvas', { class: 'game-canvas' });
-  const el = h('div', { class: 'game' }, canvas);
+  const top = h('div', { class: 'game-top' });
+  const view = h('div', { class: 'game-view' }, canvas, top);
+  const el = h('div', { class: 'game' }, view);
   const renderer = new Renderer(canvas);
   o.onRenderer?.(renderer);
   if (o.trialSlot !== undefined) renderer.trialSlots.add(o.trialSlot);
-  const touch = isTouch() ? new TouchControls(el) : null;
+  let touch: TouchControls | null = null;
+  if (isTouch()) {
+    const pad = h('div', { class: 'pad' });
+    el.append(pad);
+    touch = new TouchControls(pad);
+  }
   // touch augments player-1 input
   if (touch) {
     const s = session as any;
@@ -246,9 +253,9 @@ function gameScreen(session: Session, o: GameOpts): Screen {
 
   // pause / menu
   const menuBtn = h('button', { class: 'btn icon pause-btn', onclick: () => openMenu() }, '❚❚');
-  el.append(menuBtn);
+  top.append(menuBtn);
   if (o.training) {
-    el.append(h('div', { class: 'train-bar' },
+    top.append(h('div', { class: 'train-bar' },
       h('button', { class: 'btn small', onclick: () => (session as LocalSession).resetTraining() }, t('resetDummy')),
       h('span', { class: 'combo' }),
     ));
@@ -256,10 +263,10 @@ function gameScreen(session: Session, o: GameOpts): Screen {
   // emotes (online)
   if (o.online) {
     const emotes = ['😎', '😂', '😡', '👍', 'GG'];
-    el.append(h('div', { class: 'emotes' }, emotes.map((e, i) => h('button', { class: 'btn icon small', onclick: () => net.send({ t: 'emote', id: i }) }, e))));
+    top.append(h('div', { class: 'emotes' }, emotes.map((e, i) => h('button', { class: 'btn icon small', onclick: () => net.send({ t: 'emote', id: i }) }, e))));
     const offEm = net.on('emote', (m) => {
       const b = h('div', { class: 'emote-pop', style: { color: PLAYER_COLORS[m.slot] } }, `P${m.slot + 1}: ${emotes[m.id] ?? '?'}`);
-      el.append(b); setTimeout(() => b.remove(), 1800);
+      view.append(b); setTimeout(() => b.remove(), 1800);
     });
     (el as any)._cleanup = offEm;
   }
@@ -273,6 +280,7 @@ function gameScreen(session: Session, o: GameOpts): Screen {
     const m = modal(h('div', { class: 'pause' },
       h('h2', {}, t('pause')),
       h('button', { class: 'btn primary big', onclick: () => { m.close(); } }, t('resume')),
+      o.training ? h('button', { class: 'btn', onclick: () => { (session as LocalSession).resetTraining(); m.close(); } }, t('resetDummy')) : null,
       h('button', { class: 'btn', onclick: () => { m.close(); stop(); home(); } }, t('quit')),
     ), { onClose: () => { session.paused = false; } });
   };
@@ -360,11 +368,11 @@ function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: 
     const s = info.stats[i] ?? f.stats;
     const pl = state.cfg.players[i];
     return h('div', { class: `res-row ${i === mySlot ? 'me' : ''}`, style: { borderColor: PLAYER_COLORS[i] } },
-      h('span', { class: 'place' }, `#${num(place)}`),
-      fighterCanvas(f.charId, displaySkin(state, i), 54),
-      h('b', {}, pl.name, pl.bot ? h('small', {}, ` · ${t('bot')}`) : null),
-      h('span', {}, `${t('kos')} ${num(s.kos)}`), h('span', {}, `${t('falls')} ${num(s.falls)}`),
-      h('span', {}, `${t('damage')} ${num(s.dmgDealt)}%`), h('span', { class: 'muted' }, `${t('combo')} ${num(s.maxCombo)}`));
+      h('span', { class: 'place' }, num(place)),
+      fighterCanvas(f.charId, displaySkin(state, i), 44),
+      h('div', { class: 'who' },
+        h('b', {}, pl.name, pl.bot ? h('small', { class: 'muted' }, ` · ${t('bot')}`) : null),
+        h('span', {}, `${t('kos')} ${num(s.kos)} · ${t('falls')} ${num(s.falls)} · ${t('damage')} ${num(s.dmgDealt)}% · ${t('combo')} ${num(s.maxCombo)}`)));
   });
 
   const coinsEl = h('b', {}, num(r?.coins ?? 0));
@@ -378,7 +386,7 @@ function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: 
     ),
     r.firstWin ? h('div', { class: 'tag gold' }, '🏅 ', t('firstWin')) : null,
     r.questsDone.length ? h('div', { class: 'tag ok' }, '📜 ', t('questDone'), ` ×${num(r.questsDone.length)}`) : null,
-    r.canDouble && r.coins > 0 ? h('button', { class: 'btn ad big', onclick: async (e: Event) => {
+    r.canDouble && r.coins > 0 ? h('button', { class: 'btn ad big wide', onclick: async (e: Event) => {
       const btn = e.currentTarget as HTMLButtonElement;
       if (!(await ads.rewarded('double'))) return;
       const id = backend.profile.lastReward?.id ?? '';
@@ -392,14 +400,16 @@ function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: 
 
   const next = async (fn: () => void) => { await ads.maybeInterstitial(); fn(); };
   const el = h('div', { class: `page results ${won ? 'win' : draw ? '' : 'lose'}` },
-    h('div', { class: 'res-head' },
-      h('h1', { class: 'shine' }, draw ? t('draw') : won ? t('victory') : t('defeat')),
-      fighterCanvas(me.charId, me.skin, 170, won ? 'air' : 'idle'),
+    h('div', { class: 'scroll' },
+      h('div', { class: 'res-head' },
+        fighterCanvas(me.charId, displaySkin(state, mySlot), 130, won ? 'air' : 'idle'),
+        h('h1', { class: 'shine' }, draw ? t('draw') : won ? t('victory') : t('defeat')),
+      ),
+      rows,
+      rewards,
     ),
-    h('div', { class: 'res-table' }, rows),
-    rewards,
-    h('div', { class: 'row' },
-      h('button', { class: 'btn', onclick: () => next(home) }, t('home')),
+    h('div', { class: 'res-actions', style: { padding: '8px var(--pad) calc(10px + var(--safe-b))' } },
+      h('button', { class: 'btn big', onclick: () => next(home) }, t('home')),
       h('button', { class: 'btn primary big', onclick: () => next(o.replay) }, t('playAgain')),
     ),
   );
