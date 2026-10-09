@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import { createBrain, FIGHTERS, STAGES, type MatchConfig, type QueueFormat, type QueueMode, type RoomInfo } from '@nb/shared';
+import { createBrain, FIGHTERS, STAGES, SPELLS, fighterMods, type MatchConfig, type QueueFormat, type QueueMode, type RoomInfo } from '@nb/shared';
 import { config } from './config.ts';
 import type { UserRec } from './db.ts';
 import { Match, matchByUser, send, type Seat } from './match.ts';
@@ -49,9 +49,12 @@ function humanSeat(t: { user: UserRec; ws: WebSocket }): Seat {
   return { user: t.user, ws: t.ws, bot: null, queue: [], nextSeq: 0, lastBits: 0, ack: 0, dcAt: 0, mmr: t.user.profile.rank.mmr };
 }
 
-function randomStage(unlockLevel = 99) {
-  const pool = STAGES.filter((s) => (s.unlock ?? 0) <= unlockLevel);
-  return pool[Math.floor(Math.random() * pool.length)].id;
+function randomStage(_unlockLevel = 99) {
+  return STAGES[Math.floor(Math.random() * STAGES.length)].id;
+}
+
+function botMods() {
+  return { atk: 1, def: 1, hp: 1, spell: SPELLS[Math.floor(Math.random() * SPELLS.length)].id, spellLv: 1 };
 }
 
 function launch(mode: QueueMode, format: QueueFormat, group: Ticket[]) {
@@ -61,13 +64,13 @@ function launch(mode: QueueMode, format: QueueFormat, group: Ticket[]) {
   const seats: Seat[] = group.map(humanSeat);
   const players: MatchConfig['players'] = group.map((t, i) => {
     const { f, sk } = ownedOrDefault(t.user, t.fighter, t.skin);
-    return { charId: f, skin: sk, team: teams ? i % 2 : i, name: t.user.profile.name };
+    return { charId: f, skin: sk, team: teams ? i % 2 : i, name: t.user.profile.name, mods: fighterMods(t.user.profile, f) };
   });
   while (seats.length < size) {
     const i = seats.length;
     seats.push(botSeat(avgMmr));
     const def = FIGHTERS[Math.floor(Math.random() * FIGHTERS.length)];
-    players.push({ charId: def.id, skin: Math.floor(Math.random() * 3), team: teams ? i % 2 : i, name: BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)], bot: true });
+    players.push({ charId: def.id, skin: Math.floor(Math.random() * 3), team: teams ? i % 2 : i, name: BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)], bot: true, mods: botMods() });
   }
   const minLevel = Math.min(...group.map((t) => t.user.profile.level));
   const cfg: MatchConfig = { stageId: randomStage(minLevel), stocks: format === '1v1' ? 3 : 2, timeLimit: format === '1v1' ? 300 : 240, teams, players };
@@ -156,12 +159,12 @@ export function roomStart(user: UserRec) {
   if (!r || r.host !== user) return;
   if (r.members.length + r.bots < 2) return send(r.members[0].ws, { t: 'error', msg: 'need-2-players' });
   const seats: Seat[] = r.members.map(humanSeat);
-  const players: MatchConfig['players'] = r.members.map((m, i) => ({ charId: m.fighter, skin: m.skin, team: r.teams ? m.team : i, name: m.user.profile.name }));
+  const players: MatchConfig['players'] = r.members.map((m, i) => ({ charId: m.fighter, skin: m.skin, team: r.teams ? m.team : i, name: m.user.profile.name, mods: fighterMods(m.user.profile, m.fighter) }));
   for (let b = 0; b < r.bots; b++) {
     const i = seats.length;
     seats.push(botSeat(1100));
     const def = FIGHTERS[Math.floor(Math.random() * FIGHTERS.length)];
-    players.push({ charId: def.id, skin: 0, team: r.teams ? i % 2 : i, name: 'CPU ' + (b + 1), bot: true });
+    players.push({ charId: def.id, skin: 0, team: r.teams ? i % 2 : i, name: 'CPU ' + (b + 1), bot: true, mods: botMods() });
   }
   const cfg: MatchConfig = { stageId: r.stage, stocks: r.stocks, timeLimit: 0, teams: r.teams, players };
   for (const m of r.members) roomByUser.delete(m.user.profile.id);

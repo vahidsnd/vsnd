@@ -1,5 +1,6 @@
 import 'vazirmatn/Vazirmatn-font-face.css';
 import './styles.css';
+import './ui/progress.css';
 import { backend } from './services/backend.ts';
 import { ads } from './services/ads.ts';
 import { billing } from './services/billing.ts';

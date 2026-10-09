@@ -18,4 +18,10 @@ export const config = {
     mmrWindowGrowPerSec: 15,
   },
   corsOrigin: process.env.CORS_ORIGIN ?? '*',
+  // operator key for /api/admin/* (create the first admin / promo codes from a terminal). Empty = disabled.
+  adminKey: process.env.ADMIN_KEY ?? '',
+  // skip feature gating (world map) — for local testing only
+  unlockAll: process.env.UNLOCK_ALL === '1',
+  // a clan searching for war this long gets a computer-run rival
+  warBotAfterMs: Number(process.env.WAR_BOT_AFTER_MS ?? 5 * 60_000),
 };

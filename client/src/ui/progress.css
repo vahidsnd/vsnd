@@ -1,0 +1,134 @@
+/* World map, spells, upgrades, league, inbox, wheel, milestones */
+.ico-rune { background: linear-gradient(135deg, #e6d6ff, #9b6bff 45%, #5a2fd6); clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); border: none; }
+.big-ico.ico-rune { border-radius: 0; }
+.cur.rune { color: #cdb6ff; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px 10px; justify-content: center; font-size: 12px; }
+.chips .cur { font-size: 12px; }
+.chips .cur.hi { color: var(--accent); }
+.small { font-size: 12px; }
+
+/* ---- map ---- */
+.mapscreen .map-top { flex: none; display: flex; gap: 10px; align-items: center; padding: 0 calc(var(--pad) + var(--safe-r)) 6px calc(var(--pad) + var(--safe-l)); flex-wrap: wrap; }
+.map-banner { flex: 1; min-width: 220px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px; font-size: 12px; font-weight: 700; }
+.map-banner .xpbar { grid-column: 1 / -1; margin: 0; }
+.map-banner.open { border-color: #2ee59d66; color: var(--green); }
+.star-chests { display: flex; gap: 6px; align-items: center; }
+.star-chests > .cur { color: var(--yellow); font-size: 13px; margin-inline-end: 4px; }
+.chest { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); display: grid; place-items: center; cursor: pointer; padding: 2px; color: var(--muted); }
+.chest small { font-size: 10px; font-weight: 800; line-height: 1; }
+.chest.ready { color: #1d1400; background: linear-gradient(180deg, #ffd666, #e0a000); animation: pulse 1.2s infinite; }
+.chest.got { opacity: .55; color: var(--green); }
+@keyframes pulse { 50% { transform: scale(1.08); } }
+.map-scroll { flex: 1; min-height: 0; overflow-x: auto; overflow-y: auto; padding: 0 0 8px; scrollbar-width: thin; direction: ltr; }
+.map-canvas { position: relative; margin: 0 34px; }
+.map-region { position: absolute; top: 0; bottom: 0; border-inline-end: 1px dashed #ffffff14; background: radial-gradient(ellipse at 50% 60%, color-mix(in srgb, var(--rc) 16%, transparent), transparent 70%); display: flex; flex-direction: column; align-items: center; padding-top: 6px; }
+.map-region b { font-size: 14px; color: var(--rc); letter-spacing: .5px; }
+.map-region small { color: var(--muted); font-size: 11px; }
+.map-lines { position: absolute; inset: 0; pointer-events: none; }
+.map-node { position: absolute; transform: translate(-50%, -50%); width: 46px; height: 46px; border-radius: 50%; border: 2px solid var(--rc); background: #0d1226; display: grid; place-items: center; cursor: pointer; font-size: 15px; box-shadow: 0 4px 0 #0008; color: var(--text); }
+.map-node.done { background: color-mix(in srgb, var(--rc) 30%, #0d1226); }
+.map-node.cur { background: var(--rc); color: #04131a; box-shadow: 0 0 0 6px color-mix(in srgb, var(--rc) 25%, transparent), 0 4px 0 #0008; animation: glowpulse 1.4s infinite; }
+@keyframes glowpulse { 50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--rc) 10%, transparent), 0 4px 0 #0008; } }
+.map-node.locked { border-color: #ffffff22; color: var(--muted); }
+.map-node.k-boss { width: 58px; height: 58px; border-width: 3px; }
+.map-node .stars { position: absolute; bottom: -14px; display: flex; gap: 1px; }
+.stars i { width: 10px; height: 10px; background: #ffffff22; clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); display: inline-block; }
+.stars i.on { background: var(--yellow); }
+.stars.big i { width: 22px; height: 22px; }
+.node-modal { display: flex; flex-direction: column; gap: 10px; align-items: center; min-width: min(460px, 82vw); }
+.node-stage { width: 100%; border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 2px; text-shadow: 0 1px 3px #000; }
+.node-stage b { font-size: 20px; }
+.node-vs { display: flex; align-items: center; gap: 12px; justify-content: center; }
+.node-vs .vs { font-size: 22px; color: var(--accent2); }
+.node-vs .side-a, .node-vs .side-b { display: flex; align-items: flex-end; gap: 4px; }
+.node-vs .foe { display: flex; flex-direction: column; align-items: center; font-size: 11px; color: var(--muted); }
+.node-rew { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+
+/* ---- spells ---- */
+.sp-split { grid-template-columns: minmax(180px, 30%) 1fr; }
+.sp-left { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.rune-bal { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; font-size: 18px; }
+.rune-bal .ico { width: 22px; height: 22px; }
+.sp-fighters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; overflow-y: auto; min-height: 0; align-content: start; }
+.sp-f { position: relative; background: var(--panel); border: 1.5px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; align-items: center; padding: 2px; cursor: pointer; font-size: 10px; min-width: 0; }
+.sp-f small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.sp-f.sel { border-color: var(--accent); }
+.sp-dot { position: absolute; top: 4px; inset-inline-end: 4px; width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 6px currentColor; }
+.spells { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+.spell { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+.spell.eq { border-color: var(--c); box-shadow: inset 0 0 0 1px var(--c); }
+.spell.locked { opacity: .8; }
+.sp-ico { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; color: var(--c); background: radial-gradient(circle, color-mix(in srgb, var(--c) 30%, transparent), transparent 70%); border: 1px solid color-mix(in srgb, var(--c) 50%, transparent); }
+.sp-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; font-size: 13px; }
+.sp-main .lv { color: var(--c); }
+.sp-stat { color: var(--c); font-weight: 700; font-size: 11px; }
+.sp-act { display: flex; flex-direction: column; gap: 4px; }
+.spell-ico { display: grid; place-items: center; color: var(--c); background: radial-gradient(circle, color-mix(in srgb, var(--c) 35%, transparent), transparent 70%); border-radius: 50%; }
+
+/* ---- upgrades (fighter screen) ---- */
+.upg { display: flex; flex-direction: column; gap: 5px; background: #00000033; border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+.upg-head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 12px; }
+.upg-head .btn { margin-inline-start: auto; }
+.upg-row { display: grid; grid-template-columns: 18px 58px 1fr 46px auto; align-items: center; gap: 6px; font-size: 12px; }
+.upg-name { font-weight: 800; }
+.upg-bar { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; }
+.upg-bar i { height: 7px; border-radius: 2px; background: #ffffff18; }
+.upg-bar i.on { background: linear-gradient(90deg, var(--accent), #7fffd4); }
+.upg-fx { color: var(--accent); font-weight: 800; text-align: center; }
+.fcard .pw { position: absolute; top: 3px; inset-inline-start: 4px; font-size: 9px; font-weight: 900; color: var(--accent); }
+.fcard .cards-n { position: absolute; top: 22px; inset-inline-end: 4px; font-size: 9px; font-weight: 900; color: #1d1400; background: var(--yellow); border-radius: 4px; padding: 0 4px; }
+
+
+/* ---- league ---- */
+.league-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; background: linear-gradient(120deg, color-mix(in srgb, var(--tc) 22%, var(--panel)), var(--panel)); border: 1px solid color-mix(in srgb, var(--tc) 50%, transparent); border-radius: 16px; padding: 10px 14px; }
+.lh-badge { width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; color: var(--tc); background: #00000044; border: 2px solid var(--tc); }
+.league-head h2 { color: var(--tc); }
+.league-cols { align-items: start; }
+.ladder { display: flex; flex-direction: column; gap: 4px; }
+.rung { display: grid; grid-template-columns: 52px 1fr auto; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4px 8px; font-size: 12px; opacity: .7; }
+.rung.reached { opacity: 1; }
+.rung.cur { border-color: var(--tc); box-shadow: inset 0 0 0 1px var(--tc); }
+.rung-badge { display: flex; align-items: center; gap: 4px; color: var(--tc); }
+.rung-main { display: flex; flex-direction: column; min-width: 0; }
+.rung .chips { justify-content: flex-end; font-size: 11px; }
+.season-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line); padding-top: 4px; }
+.season-row b { color: var(--tc); font-size: 13px; }
+
+/* ---- inbox ---- */
+.mail { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; }
+.mail.read { opacity: .65; }
+.mail-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mail-main .chips { justify-content: flex-start; }
+
+/* ---- wheel ---- */
+.wheel { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+
+/* ---- milestones ---- */
+.milestones .ms-track { position: relative; height: 46px; margin: 4px 22px 2px; }
+.ms-track::before { content: ''; position: absolute; inset-inline: 0; top: 14px; height: 6px; border-radius: 9px; background: #00000066; }
+.ms-fill { position: absolute; inset-inline-start: 0; top: 14px; height: 6px; border-radius: 9px; background: linear-gradient(90deg, var(--accent2), var(--yellow)); }
+.ms { position: absolute; top: 0; transform: translateX(-50%); width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); display: grid; place-items: center; cursor: pointer; color: var(--muted); padding: 1px; }
+[dir=rtl] .ms { transform: translateX(50%); }
+.ms small { font-size: 10px; font-weight: 900; line-height: 1; }
+.ms.ready { color: #1d1400; background: linear-gradient(180deg, #ffd666, #e0a000); animation: goldpulse 1.2s infinite; }
+@keyframes goldpulse { 50% { box-shadow: 0 0 0 6px #ffc93c33; } }
+.ms.got { color: var(--green); }
+
+/* ---- spell visuals in-game: magic button + meter ---- */
+.tb.magic { border-color: #b48cff; }
+.tb.magic.ready { background: radial-gradient(circle, #b48cffcc, #5a2fd6aa); box-shadow: 0 0 18px #b48cff; animation: pulse 1s infinite; }
+
+@media (max-height: 380px) {
+  .map-node { width: 40px; height: 40px; }
+  .map-node.k-boss { width: 50px; height: 50px; }
+  .upg-row { grid-template-columns: 18px 50px 1fr 40px auto; }
+}
+@media (max-width: 700px) {
+  .sp-split { grid-template-columns: 1fr; }
+  .sp-fighters { grid-template-columns: repeat(6, 1fr); max-height: 90px; }
+}
+
+/* results: map stars */
+.res-side { display: flex; flex-direction: column; gap: 8px; }
+.res-map { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.res-map .stars i { width: 28px; height: 28px; }

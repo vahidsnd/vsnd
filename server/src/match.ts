@@ -2,10 +2,11 @@ import crypto from 'node:crypto';
 import type { WebSocket } from 'ws';
 import {
   applyMatch, botInput, createBrain, createGame, eloDelta, encodeFighters, encodeMeta, encodeProjectiles,
-  placements, step, SNAPSHOT_EVERY, TICK_RATE, COUNTDOWN,
+  placements, step, SNAPSHOT_EVERY, TICK_RATE, COUNTDOWN, trackLeague, warReport, clanOf,
   type BotBrain, type GameEvent, type GameState, type MatchConfig, type MatchEndInfo, type ServerMsg,
 } from '@nb/shared';
-import { markDirty, type UserRec } from './db.ts';
+import { markDirty, socialCtx, type UserRec } from './db.ts';
+import { notifyClan } from './sockets.ts';
 
 export type MatchMode = 'ranked' | 'casual' | 'private';
 
@@ -175,6 +176,11 @@ export class Match {
         p.rank.peak = Math.max(p.rank.peak, p.rank.mmr);
         if (won) { p.rank.wins++; p.rank.streak = Math.max(1, p.rank.streak + 1); } else { p.rank.losses++; p.rank.streak = 0; }
         reward.mmrDelta = mmrDelta;
+        trackLeague(p);
+      }
+      if (this.mode !== 'private') {
+        const ctx = socialCtx();
+        if (warReport(ctx, p.id, won, f.stats.kos)) { const c = clanOf(ctx.db, p.id); if (c) notifyClan(c.id, 'war'); }
       }
       markDirty();
       const info: MatchEndInfo = { winnerTeam: st.winnerTeam, placements: place, stats, reward, mmrDelta, profile: p };

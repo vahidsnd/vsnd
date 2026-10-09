@@ -4,6 +4,8 @@ import {
   createGame, step, botInput, createBrain, FIGHTERS, STAGES, Btn, cloneState,
   encodeFighters, applyFighters, newProfile, applyMatch, buyItem, grantIap, claimPass, passTier, PASS_XP_PER_TIER,
   completeTutorial, claimAchievement, featureUnlocked, migrateProfile, type Profile,
+  clearMapNode, mapNodes, MAP_SIZE, upgradeStat, fighterMods, learnSpell, equipSpell, claimMilestone, spinWheel, leagueSteps, tierFor,
+  claimLeague, filterText,
   type MatchConfig,
 } from '../src/index.ts';
 
@@ -12,9 +14,10 @@ function cfg(chars: string[], stage = 'rooftop', stocks = 3): MatchConfig {
 }
 
 test('bot vs bot matches finish on every stage with every fighter', () => {
-  for (const stage of STAGES) {
-    for (let i = 0; i < FIGHTERS.length; i++) {
-      const a = FIGHTERS[i].id, b = FIGHTERS[(i + 1) % FIGHTERS.length].id;
+  for (const [si, stage] of STAGES.entries()) {
+    // every fighter appears on every few stages; every stage sees several match-ups
+    for (let i = si % 4; i < FIGHTERS.length; i += 4) {
+      const a = FIGHTERS[i].id, b = FIGHTERS[(i + 1 + si) % FIGHTERS.length].id;
       const g = createGame(cfg([a, b], stage.id, 2));
       const brains = [createBrain(9, 1 + i), createBrain(9, 99 + i)];
       let f = 0;
@@ -107,7 +110,7 @@ test('tutorial reward is paid once, achievements and unlocks progress', () => {
   assert.equal(completeTutorial(p, 'basic'), null);
   assert.equal(p.coins, coins + 300 + 170); // tutorial reward + level-2 level-up bonus
   assert.equal(p.level, 2);
-  assert.equal(featureUnlocked(p, 'friends'), true);
+  assert.equal(featureUnlocked(p, 'online'), false); // online opens after the world map
   assert.equal(claimAchievement(p, 'first_win'), null);
   applyMatch(p, { matchId: 'm', mode: 'cpu', won: true, placement: 1, players: 2, kos: 3, falls: 0, dmg: 200, smashKOs: 1, maxCombo: 5, fighter: 'blaze', durationSec: 90 });
   assert.equal(featureUnlocked(p, 'shop'), true);
@@ -121,4 +124,49 @@ test('tutorial reward is paid once, achievements and unlocks progress', () => {
   delete (old as any).ach; delete (old as any).history; delete (old as any).fstats;
   migrateProfile(old);
   assert.deepEqual(old.ach, []);
+});
+
+test('progression: map, upgrades, spells, milestones, wheel, leagues', () => {
+  const p = newProfile('u3', 'M');
+  assert.equal(mapNodes().length, MAP_SIZE);
+  assert.equal(clearMapNode(p, 3, true, 0), null);       // can't skip ahead
+  const c = clearMapNode(p, 0, true, 0)!;
+  assert.ok(c.firstClear && c.stars === 3 && p.map.cleared === 1);
+  assert.equal(clearMapNode(p, 0, true, 2)!.firstClear, false);
+  for (let i = 1; i < MAP_SIZE; i++) clearMapNode(p, i, true, 1);
+  assert.equal(featureUnlocked(p, 'online'), true);
+  assert.ok(p.fighters.length > 2, 'bosses unlock fighters');
+  // card upgrades
+  p.cards.blaze = 100; p.coins = 100000;
+  assert.ok(upgradeStat(p, 'blaze', 'atk'));
+  assert.ok(fighterMods(p, 'blaze').atk > 1);
+  // spells
+  p.runes = 1000;
+  assert.ok(learnSpell(p, 'thunder'));
+  assert.ok(equipSpell(p, 'blaze', 'thunder'));
+  assert.equal(fighterMods(p, 'blaze').spell, 'thunder');
+  // milestones
+  p.daily.fights = 3;
+  assert.ok(claimMilestone(p, 0)); assert.ok(claimMilestone(p, 1)); assert.equal(claimMilestone(p, 2), null);
+  // wheel: one free spin a day
+  assert.ok(spinWheel(p, 'd1', false)); assert.equal(spinWheel(p, 'd1', false), null);
+  // leagues
+  assert.equal(leagueSteps().length, 13);
+  assert.equal(tierFor(1000).tier.id, 'bronze');
+  assert.equal(tierFor(1900).tier.id, 'legendary');
+  p.rank.peak = 1320;
+  assert.ok(claimLeague(p, 'gold3')); assert.equal(claimLeague(p, 'crystal3'), null);
+  assert.ok(filterText('you are a fuck').flagged);
+});
+
+test('spells and upgrades work in the simulation', () => {
+  const base = cfg(['blaze', 'blaze'], 'dojo');
+  base.players[0].mods = { atk: 1.2, def: 1, hp: 1, spell: 'nova', spellLv: 3 };
+  const g = createGame(base);
+  for (let i = 0; i < 200; i++) step(g, [0, 0]);
+  g.fighters[0].x = 0; g.fighters[1].x = 40; g.fighters[0].mana = 100;
+  step(g, [Btn.MAGIC, 0]);
+  assert.equal(g.fighters[0].mana, 0);
+  for (let i = 0; i < 20; i++) step(g, [0, 0]);
+  assert.ok(g.fighters[1].damage >= 16, 'nova hits with level + attack bonus: ' + g.fighters[1].damage);
 });

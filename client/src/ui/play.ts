@@ -1,6 +1,6 @@
 import {
-  FIGHTERS, STAGES, getFighter, placements, TICK_RATE, COUNTDOWN,
-  type GameState, type MatchConfig, type MatchEndInfo, type QueueFormat, type RewardResult, type RoomInfo, type ServerMsg,
+  FIGHTERS, STAGES, getFighter, placements, TICK_RATE, COUNTDOWN, SPELLS, fighterMods, mapNodes, stageUnlocked, MAP_SIZE, getStage, getSpell,
+  type GameState, type MapClear, type FighterMods, type MatchConfig, type MatchEndInfo, type QueueFormat, type RewardResult, type RoomInfo, type ServerMsg,
 } from '@nb/shared';
 import { backend } from '../services/backend.ts';
 import { ads } from '../services/ads.ts';
@@ -17,6 +17,8 @@ import { svg } from './icons.ts';
 import { specialsList, basicsList } from './movelist.ts';
 import { introOnce, TUTORIAL, tutorialText } from './tutorial.ts';
 import { homeScreen } from './home.ts';
+import { social } from '../services/social.ts';
+import { grantedToItems } from './dom.ts';
 
 const home = () => show(homeScreen);
 type Replay = () => void;
@@ -144,10 +146,11 @@ export function cpuSetupScreen(): Screen {
     body.append(
       h('h3', {}, t('stage')),
       h('div', { class: 'stages' }, STAGES.map((s) => {
-        const locked = (s.unlock ?? 0) > p.level;
+        const locked = !stageUnlocked(p, s.id);
+        const req = STAGES.findIndex((x) => x.id === s.id) + 1;
         return h('button', { class: `stage-card ${s.id === st.stage ? 'sel' : ''} ${locked ? 'locked' : ''}`, style: { background: `linear-gradient(180deg, ${s.theme.sky[0]}, ${s.theme.sky[1]})` },
-          onclick: () => { if (locked) { toast(`${t('level')} ${num(s.unlock!)}`, 'err'); return; } st.stage = s.id; render(); } },
-          h('b', {}, loc(s)), locked ? h('small', {}, svg('lock', 12), ` ${t('level')} ${num(s.unlock!)}`) : null);
+          onclick: () => { if (locked) { toast(isFa() ? `در مرحله ${num(req)} نقشه باز می‌شود` : `Opens at map stage ${num(req)}`, 'err'); return; } st.stage = s.id; render(); } },
+          h('b', {}, loc(s)), locked ? h('small', {}, svg('lock', 12), ` ${isFa() ? 'نقشه' : 'Map'} ${num(req)}`) : null);
       })),
       h('div', { class: 'opts' },
         h('div', { class: 'opt' }, h('span', {}, t('opponents')), [1, 2, 3].map((n) => h('button', { class: `btn small ${st.opponents === n ? 'primary' : ''}`, onclick: () => { st.opponents = n; render(); } }, num(n)))),
@@ -166,21 +169,27 @@ export function cpuSetupScreen(): Screen {
   return { el: h('div', { class: 'page cpu' }, topBar({ back: home, title: t('vsCpu') }), body) };
 }
 
+/** Random spell for CPU opponents once the player has spells themselves. */
+function cpuMods(level: number): FighterMods | undefined {
+  if ((backend.profile.map?.cleared ?? 0) < 3 && !backend.profile.dev) return undefined;
+  return { atk: 1, def: 1, hp: 1, spell: SPELLS[Math.floor(Math.random() * SPELLS.length)].id, spellLv: Math.max(1, Math.min(5, Math.ceil(level / 2))) };
+}
+
 export function startCpuMatch(o: { fighter?: string; skin?: number; trial?: boolean; stage?: string; opponents?: number; level?: number; stocks?: number; teams?: boolean; slots?: string[] }) {
   const p = backend.profile;
   const fighter = o.fighter ?? p.selFighter;
   const skin = o.skin ?? backend.selectedSkin(fighter);
   const opp = o.opponents ?? 1;
   const level = o.level ?? Math.min(9, 2 + Math.floor(p.level / 3));
-  const stagePool = STAGES.filter((s) => (s.unlock ?? 0) <= p.level);
+  const stagePool = STAGES.filter((s) => stageUnlocked(p, s.id));
   const stage = o.stage ?? stagePool[Math.floor(Math.random() * stagePool.length)].id;
-  const players: MatchConfig['players'] = [{ charId: fighter, skin, team: 0, name: p.name }];
+  const players: MatchConfig['players'] = [{ charId: fighter, skin, team: 0, name: p.name, mods: o.trial ? undefined : fighterMods(p, fighter) }];
   const sources: (InputSource | null)[] = [null];
   const bots: (number | null)[] = [null];
   for (let i = 0; i < opp; i++) {
     const kind = o.slots?.[i] ?? 'cpu';
     const def = FIGHTERS[Math.floor(Math.random() * FIGHTERS.length)];
-    players.push({ charId: def.id, skin: Math.floor(Math.random() * 3), team: o.teams ? (i === 0 ? 0 : 1) : i + 1, name: kind === 'cpu' ? `CPU ${i + 1}` : `P${i + 2}`, bot: kind === 'cpu' });
+    players.push({ charId: def.id, skin: Math.floor(Math.random() * 3), team: o.teams ? (i === 0 ? 0 : 1) : i + 1, name: kind === 'cpu' ? `CPU ${i + 1}` : `P${i + 2}`, bot: kind === 'cpu', mods: kind === 'cpu' ? cpuMods(level) : undefined });
     sources.push(kind === 'cpu' ? null : new GamepadSource(Number(kind.slice(3))));
     bots.push(kind === 'cpu' ? level : null);
   }
@@ -200,20 +209,60 @@ export function startCpuMatch(o: { fighter?: string; skin?: number; trial?: bool
       const f = state.fighters[0];
       const place = placements(state);
       const durationSec = Math.max(0, state.endFrame - COUNTDOWN) / TICK_RATE;
+      const won = state.winnerTeam === f.team;
       const reward = await backend.reportCpu({
-        matchId: 'cpu-' + Date.now(), mode: 'cpu', won: state.winnerTeam === f.team, placement: place[0], players: state.fighters.length,
+        matchId: 'cpu-' + Date.now(), mode: 'cpu', won, placement: place[0], players: state.fighters.length,
         kos: f.stats.kos, falls: f.stats.falls, dmg: f.stats.dmgDealt, smashKOs: f.stats.smashKOs, maxCombo: f.stats.maxCombo, fighter, durationSec,
       }).catch(() => null);
+      if (social().demo) social().matchPlayed(won, f.stats.kos);
       show(() => resultsScreen(state, 0, { winnerTeam: state.winnerTeam, placements: place, stats: state.fighters.map((x) => x.stats) }, { mode: 'cpu', replay, online: false, reward: reward ?? undefined }));
     },
   }));
+}
+
+/** A world-map battle: fixed arena, foes and allies from the node definition. */
+export function startMapNode(i: number) {
+  const p = backend.profile;
+  const node = mapNodes()[i];
+  if (!node) return;
+  const fighter = p.selFighter;
+  const players: MatchConfig['players'] = [{ charId: fighter, skin: backend.selectedSkin(fighter), team: 0, name: p.name, mods: fighterMods(p, fighter) }];
+  const sources: (InputSource | null)[] = [playerSource(true)];
+  const bots: (number | null)[] = [null];
+  const teams = node.kind === 'team';
+  if (node.ally) { players.push({ charId: node.ally.charId, skin: 1, team: 0, name: isFa() ? 'هم‌تیمی' : 'Ally', bot: true }); sources.push(null); bots.push(node.ally.lv); }
+  node.foes.forEach((f, k) => {
+    players.push({ charId: f.charId, skin: node.kind === 'boss' ? 3 : 2, team: teams ? 1 : players.length, name: node.kind === 'boss' ? (isFa() ? 'رئیس ' : 'Boss ') + loc(getFighter(f.charId)) : loc(getFighter(f.charId)), bot: true, mods: f.mods ?? cpuMods(f.lv) });
+    sources.push(null); bots.push(f.lv);
+    void k;
+  });
+  const cfg: MatchConfig = { stageId: node.stage, stocks: node.stocks, timeLimit: 0, teams, players };
+  const session = new LocalSession(cfg, sources, bots);
+  show(() => gameScreen(session, {
+    online: false,
+    onLocalEnd: async (state) => {
+      ads.noteMatch();
+      const f = state.fighters[0];
+      const place = placements(state);
+      const won = state.winnerTeam === f.team;
+      const durationSec = Math.max(0, state.endFrame - COUNTDOWN) / TICK_RATE;
+      const res = await backend.reportMap(i, {
+        matchId: 'map-' + i + '-' + Date.now(), mode: 'map', won, placement: place[0], players: state.fighters.length,
+        kos: f.stats.kos, falls: f.stats.falls, dmg: f.stats.dmgDealt, smashKOs: f.stats.smashKOs, maxCombo: f.stats.maxCombo, fighter, durationSec,
+      }).catch(() => ({ reward: null, map: null }));
+      if (social().demo) social().matchPlayed(won, f.stats.kos);
+      show(() => resultsScreen(state, 0, { winnerTeam: state.winnerTeam, placements: place, stats: state.fighters.map((x) => x.stats) },
+        { mode: 'cpu', replay: () => startMapNode(i), online: false, reward: res.reward ?? undefined, map: res.map ? { node: i, clear: res.map } : undefined }));
+    },
+  }));
+  if (i === 0) introOnce('map-fight', [{ title: { fa: 'اولین نبرد نقشه', en: 'First map battle' }, text: { fa: 'حریف را از صحنه بیرون بینداز. بدون سقوط ببری ۳ ستاره می‌گیری!', en: 'Knock your foe off the stage. Win without falling for 3 stars!' } }]);
 }
 
 export function startTraining() {
   const p = backend.profile;
   const cfg: MatchConfig = {
     stageId: 'dojo', stocks: 99, timeLimit: 0, teams: false,
-    players: [{ charId: p.selFighter, skin: backend.selectedSkin(p.selFighter), team: 0, name: p.name }, { charId: 'boulder', skin: 0, team: 1, name: t('dummy'), bot: true }],
+    players: [{ charId: p.selFighter, skin: backend.selectedSkin(p.selFighter), team: 0, name: p.name, mods: fighterMods(p, p.selFighter) }, { charId: 'boulder', skin: 0, team: 1, name: t('dummy'), bot: true }],
   };
   const session = new LocalSession(cfg, [playerSource(true), null], [null, null], true);
   session.state.frame = COUNTDOWN; // skip countdown
@@ -303,6 +352,12 @@ function gameScreen(session: Session, o: GameOpts): Screen {
   o.onRenderer?.(renderer);
   if (o.trialSlot !== undefined) renderer.trialSlots.add(o.trialSlot);
   const touch = isTouch() ? new TouchControls(el) : null;
+  const mySlot0 = session.localSlots[0] ?? 0;
+  const mySpell = getSpell(session.state.cfg.players[mySlot0]?.mods?.spell);
+  const magicBtn = touch?.el.querySelector('.tb-magic') as HTMLElement | null;
+  if (touch && mySpell) { touch.el.classList.add('has-magic'); magicBtn?.style.setProperty('border-color', mySpell.color); }
+  let magicReady = false;
+  if (mySpell && !o.online && !o.tutorial) setTimeout(() => introOnce('magic-fight', [{ target: touch ? '.tb-magic' : undefined, title: { fa: 'جادو آماده است', en: 'Your spell' }, text: { fa: `نوار بنفش زیر درصد آسیبت با ضربه زدن پر می‌شود. وقتی پر شد ${touch ? 'دکمه جادو' : 'کلید E'} را بزن تا «${mySpell.nameFa}» اجرا شود.`, en: `The bar under your damage fills as you fight. When it's full, press ${touch ? 'the magic button' : 'E'} to cast ${mySpell.name}.` } }]), 3200);
   // touch augments player-1 input
   if (touch) {
     const s = session as any;
@@ -394,6 +449,10 @@ function gameScreen(session: Session, o: GameOpts): Screen {
     if (n === 5) acc = 0;
     const st = session.state;
     renderer.draw(st, { localSlots: session.localSlots, time: (now - t0) / 1000, training: o.training || o.tutorial, ping: o.online ? session.ping : undefined });
+    if (magicBtn && mySpell) {
+      const ready = (st.fighters[mySlot0]?.mana ?? 0) >= 100;
+      if (ready !== magicReady) { magicReady = ready; magicBtn.classList.toggle('ready', ready); }
+    }
     if (o.training) {
       const v = st.fighters[1];
       const c = el.querySelector('.combo');
@@ -424,7 +483,7 @@ function gameScreen(session: Session, o: GameOpts): Screen {
 // ============================================================================================
 // Results
 // ============================================================================================
-interface ResultOpts { mode: 'ranked' | 'casual' | 'private' | 'cpu'; replay: Replay; online: boolean; reward?: RewardResult }
+interface ResultOpts { mode: 'ranked' | 'casual' | 'private' | 'cpu'; replay: Replay; online: boolean; reward?: RewardResult; map?: { node: number; clear: MapClear } }
 
 function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: ResultOpts): Screen {
   const me = state.fighters[mySlot];
@@ -451,6 +510,8 @@ function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: 
       h('span', { class: 'cur big' }, icon('coin'), coinsEl),
       r.gems ? h('span', { class: 'cur big' }, icon('gem'), num(r.gems)) : null,
       h('span', { class: 'cur big' }, svg('star', 16), `+${num(r.xp)} XP`),
+      r.runes ? h('span', { class: 'cur big rune' }, icon('rune'), `+${num(r.runes)}`) : null,
+      r.cards ? h('span', { class: 'cur big' }, svg('fighters', 16), `+${num(r.cards)}`) : null,
       r.mmrDelta !== undefined ? h('span', { class: `cur big ${r.mmrDelta >= 0 ? 'up' : 'down'}` }, `${r.mmrDelta >= 0 ? '▲' : '▼'} ${num(Math.abs(r.mmrDelta))}`) : null,
     ),
     r.firstWin ? h('div', { class: 'tag gold' }, svg('medal', 12), t('firstWin')) : null,
@@ -468,15 +529,30 @@ function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: 
     r.levelUps.flatMap((l) => [{ kind: 'coin' as const, amount: l.coins }, ...(l.gems ? [{ kind: 'gem' as const, amount: l.gems }] : [])])), 900);
 
   const next = async (fn: () => void) => { await ads.maybeInterstitial(); fn(); };
+  const mc = o.map?.clear;
+  const mapBlock = o.map && mc ? h('div', { class: 'res-map' },
+    h('span', { class: 'stars big' }, [1, 2, 3].map((k) => h('i', { class: k <= mc.stars ? 'on' : '' }))),
+    mc.firstClear ? h('b', { class: 'tag gold' }, isFa() ? `مرحله ${num(o.map.node + 1)} فتح شد!` : `Stage ${num(o.map.node + 1)} cleared!`) : null) : null;
+  if (mc?.granted) {
+    const g = mc.granted;
+    setTimeout(() => {
+      rewardReveal(isFa() ? 'جایزه فتح مرحله' : 'Stage reward', grantedToItems(g));
+      if (o.map!.node + 1 === MAP_SIZE) setTimeout(() => toast(isFa() ? 'نقشه فتح شد! بازی آنلاین باز شد' : 'World conquered! Online play unlocked', 'ok'), 400);
+    }, 700);
+  }
+  const nextNode = o.map && mc?.firstClear && o.map.node + 1 < MAP_SIZE ? o.map.node + 1 : -1;
   const el = h('div', { class: `page results ${won ? 'win' : draw ? '' : 'lose'}` },
     h('div', { class: 'res-head' },
       fighterCanvas(me.charId, displaySkin(state, mySlot), 110, won ? 'air' : 'idle'),
       h('h1', { class: 'title-grad' }, draw ? t('draw') : won ? t('victory') : t('defeat')),
     ),
-    h('div', { class: 'res-body' }, h('div', { class: 'res-table' }, rows), rewards),
+    h('div', { class: 'res-body' }, h('div', { class: 'res-table' }, rows), h('div', { class: 'res-side' }, mapBlock, rewards)),
     h('div', { class: 'res-actions' },
       h('button', { class: 'btn big', onclick: () => next(home) }, t('home')),
-      h('button', { class: 'btn primary big', onclick: () => next(o.replay) }, svg('refresh', 18), t('playAgain')),
+      o.map ? h('button', { class: 'btn big', onclick: () => next(() => import('./progress.ts').then((m) => show(() => m.mapScreen(o.map!.node)))) }, svg('map', 18), isFa() ? 'نقشه' : 'Map') : null,
+      nextNode >= 0
+        ? h('button', { class: 'btn primary big', onclick: () => next(() => startMapNode(nextNode)) }, svg('swords', 18), isFa() ? 'مرحله بعد' : 'Next stage')
+        : h('button', { class: 'btn primary big', onclick: () => next(o.replay) }, svg('refresh', 18), o.map ? (isFa() ? 'دوباره' : 'Retry') : t('playAgain')),
     ),
   );
   if (won) audio.reward();

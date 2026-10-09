@@ -1,5 +1,6 @@
 import {
   getFighter, LOGIN_REWARDS, passTier, tierFor, IAP_PRODUCTS, claimableAchievements, featureUnlocked, featureRequirement,
+  claimableMilestones, claimableLeague, unreadMail, wheelState, dayKey, MAP_SIZE, romanDiv, fighterPower,
   type FeatureId, type QueueFormat,
 } from '@nb/shared';
 import { backend } from '../services/backend.ts';
@@ -8,6 +9,7 @@ import { net } from '../net/net.ts';
 import { h, show, topBar, fighterCanvas, modal, rewardReveal, toast, icon, lockText, type Screen } from './dom.ts';
 import { svg } from './icons.ts';
 import { checkUnlocks, onboarding, silenceExistingUnlocks } from './tutorial.ts';
+import { social } from '../services/social.ts';
 import { t, num, isFa, loc } from '../i18n.ts';
 
 let loginShownDay = '';
@@ -23,6 +25,11 @@ export function homeScreen(): Screen {
   const questsReady = p.daily.quests.filter((q) => !q.claimed && q.progress >= q.target).length;
   const passReady = Math.max(0, passTier(p) - p.pass.free.length) + (p.pass.premium ? Math.max(0, passTier(p) - p.pass.prem.length) : 0);
   const achReady = claimableAchievements(p);
+  const msReady = claimableMilestones(p);
+  const leagueReady = claimableLeague(p);
+  const mail = unreadMail(p);
+  const wheelFree = wheelState(p, dayKey(Date.now())).free;
+  const staff = (() => { try { return social().staffRole(); } catch { return null; } })();
   const badge = (n: number) => (n > 0 ? h('span', { class: 'badge' }, num(n)) : null);
 
   const locked = (f: FeatureId) => toast(`${t('unlocksAt')} ${lockText(featureRequirement(f))}`, 'info');
@@ -33,22 +40,36 @@ export function homeScreen(): Screen {
       isOpen ? badge(n) : h('span', { class: 'req' }, lockText(featureRequirement(feature!))));
   };
 
+  const fa = isFa();
   const side = h('nav', { class: 'side' },
     sideBtn('fighters', 'fighters', t('fighters'), () => go('fighters')),
+    sideBtn('spells', 'sparkles', fa ? 'جادو' : 'Spells', () => progress((m) => m.spellsScreen()), 'spells'),
     sideBtn('shop', 'shop', t('shop'), () => go('shop'), 'shop'),
+    sideBtn('quests', 'quests', t('quests'), () => go('quests'), 'quests', questsReady + msReady + (p.login.claimed ? 0 : 1)),
     sideBtn('pass', 'pass', t('pass'), () => go('pass'), 'pass', passReady),
-    sideBtn('quests', 'quests', t('quests'), () => go('quests'), 'quests', questsReady + (p.login.claimed ? 0 : 1)),
     sideBtn('achievements', 'medal', t('achievements'), () => go('achievements'), 'achievements', achReady),
-    sideBtn('leaderboard', 'trophy', t('leaderboard'), () => go('leaderboard')),
+    sideBtn('league', 'trophy', fa ? 'لیگ' : 'League', () => progress((m) => m.leagueScreen()), 'ranked', leagueReady),
+    sideBtn('leaderboard', 'star', t('leaderboard'), () => go('leaderboard')),
+    staff ? sideBtn('police', 'police', fa ? 'پلیس بازی' : 'Game Police', () => import('./police.ts').then((m) => show(m.policeScreen))) : null,
     sideBtn('settings', 'settings', t('settings'), () => go('settings')),
+  );
+  const tool = (id: string, ico: string, label: string, fn: () => void, n = 0, feature?: FeatureId) => {
+    const isOpen = !feature || open(feature);
+    return h('button', { class: `tool ${isOpen ? '' : 'locked'}`, 'data-f': id, title: label, 'aria-label': label, onclick: () => (isOpen ? fn() : locked(feature!)) }, svg(isOpen ? ico : 'lock', 18), isOpen ? badge(n) : null);
+  };
+  const tools = h('div', { class: 'hero-tools' },
+    tool('chat', 'chat', fa ? 'چت' : 'Chat', () => import('./chat.ts').then((m) => m.openChat()), 0, 'chat'),
+    tool('inbox', 'mail', fa ? 'صندوق پیام' : 'Inbox', () => progress((m) => m.inboxScreen()), mail),
+    tool('wheel', 'wheel', fa ? 'گردونه شانس' : 'Lucky wheel', () => progress((m) => m.wheelModal(() => show(homeScreen))), wheelFree ? 1 : 0, 'wheel'),
   );
 
   const hero = h('div', { class: 'hero' },
     h('div', { class: 'hero-glow' }),
+    tools,
     (() => { const c = fighterCanvas(def.id, skin, 230); c.addEventListener('click', () => go('fighters')); return c; })(),
-    h('div', { class: 'hero-name' }, loc(def), h('small', {}, isFa() ? def.titleFa : def.title)),
+    h('div', { class: 'hero-name' }, loc(def), h('small', {}, isFa() ? def.titleFa : def.title, open('cards') ? ` · ${fa ? 'قدرت' : 'Power'} ${num(fighterPower(p, def.id))}` : '')),
     h('div', { class: 'rank-pill', style: { borderColor: tier.tier.color } },
-      h('b', { style: { color: tier.tier.color } }, `${isFa() ? tier.tier.nameFa : tier.tier.name} ${tier.division ? ['', 'I', 'II', 'III'][tier.division] : ''}`),
+      h('b', { style: { color: tier.tier.color } }, `${isFa() ? tier.tier.nameFa : tier.tier.name} ${tier.division ? romanDiv(tier.division) : ''}`),
       h('span', {}, `${num(p.rank.mmr)} · ${num(p.rank.wins)}${t('wins')} ${num(p.rank.losses)}${t('losses')}`)),
     h('div', { class: 'status' },
       h('span', { class: backend.online ? 'dot ok' : 'dot' }),
@@ -56,6 +77,9 @@ export function homeScreen(): Screen {
   );
 
   const online = backend.online;
+  const onlineOpen = open('online');
+  const mapDone = p.map.cleared >= MAP_SIZE;
+  const nextNode = Math.min(p.map.cleared, MAP_SIZE - 1);
   const mode = (cls: string, ico: string, title: string, desc: string, fn: () => void, opts: { online?: boolean; feature?: FeatureId } = {}) => {
     const isLocked = opts.feature && !open(opts.feature);
     const off = opts.online && !online;
@@ -66,13 +90,22 @@ export function homeScreen(): Screen {
       isLocked ? h('span', { class: 'tag lock' }, lockText(featureRequirement(opts.feature!))) : null);
   };
 
+  const playBtn = onlineOpen && online
+    ? h('button', { class: 'btn play', onclick: () => queue('casual', '1v1') }, t('play'), h('small', {}, t('quick') + ' 1v1'))
+    : !mapDone
+      ? h('button', { class: 'btn play', 'data-f': 'mapplay', onclick: () => import('./play.ts').then((m) => m.startMapNode(nextNode)) }, t('play'), h('small', {}, fa ? `نقشه · مرحله ${num(nextNode + 1)}` : `Map · stage ${num(nextNode + 1)}`))
+      : h('button', { class: 'btn play', onclick: cpu }, t('play'), h('small', {}, t('vsCpu')));
   const modes = h('div', { class: 'modes' },
-    h('button', { class: 'btn play', onclick: () => (online ? queue('casual', '1v1') : cpu()) }, t('play'), h('small', {}, online ? t('quick') + ' 1v1' : t('vsCpu'))),
-    mode('m-ranked', 'trophy', t('ranked'), t('rankedDesc'), () => queue('ranked', '1v1'), { online: true, feature: 'ranked' }),
-    mode('m-quick', 'zap', t('quick'), t('quickDesc'), () => pickFormat(), { online: true }),
-    mode('m-friends', 'users', t('friends'), t('friendsDesc'), () => import('./play.ts').then((m) => show(m.roomScreen)), { online: true, feature: 'friends' }),
-    mode('m-cpu', 'bot', t('vsCpu'), t('vsCpuDesc'), cpu),
-    mode('m-train', 'target', t('training'), t('trainingDesc'), () => import('./play.ts').then((m) => m.startTraining())),
+    playBtn,
+    h('div', { class: 'mode-grid' },
+      mode('m-map', 'map', fa ? 'نقشه جهان' : 'World map', `${num(Math.min(p.map.cleared, MAP_SIZE))}/${num(MAP_SIZE)}`, () => progress((m) => m.mapScreen())),
+      mode('m-ranked', 'trophy', fa ? 'لیگ' : 'League', t('rankedDesc'), () => queue('ranked', '1v1'), { online: true, feature: 'ranked' }),
+      mode('m-quick', 'globe', t('quick'), t('quickDesc'), () => pickFormat(), { online: true, feature: 'online' }),
+      mode('m-clan', 'shield', fa ? 'قبیله' : 'Clan', p.clan ? `[${p.clan.tag}] ${p.clan.name}` : (fa ? 'جنگ، اتحاد، چت' : 'Wars, allies, chat'), () => import('./clan.ts').then((m) => show(m.clanScreen)), { feature: 'clans' }),
+      mode('m-friends', 'users', t('friends'), t('friendsDesc'), () => import('./play.ts').then((m) => show(m.roomScreen)), { online: true, feature: 'friends' }),
+      mode('m-cpu', 'bot', t('vsCpu'), t('vsCpuDesc'), cpu),
+      mode('m-train', 'target', t('training'), t('trainingDesc'), () => import('./play.ts').then((m) => m.startTraining())),
+    ),
   );
 
   const el = h('div', { class: 'home' },
@@ -104,6 +137,10 @@ export function homeScreen(): Screen {
   setTimeout(popups, 350);
 
   return { el, bannerAd: true };
+}
+
+function progress(fn: (m: typeof import('./progress.ts')) => unknown) {
+  import('./progress.ts').then((m) => { const r = fn(m); if (r && typeof r === 'object' && 'el' in (r as object)) show(() => r as Screen); });
 }
 
 function go(where: 'fighters' | 'shop' | 'pass' | 'quests' | 'leaderboard' | 'settings' | 'achievements' | 'profile') {

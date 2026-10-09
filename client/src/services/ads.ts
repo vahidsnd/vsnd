@@ -16,7 +16,7 @@ import { t } from '../i18n.ts';
  *  Banner: main menu only, never during gameplay. Removed by "No Ads".
  *  Network: Google Play build → AdMob, Myket build → Tapsell Plus, web → demo overlay.
  */
-export type RewardedPlacement = 'double' | 'crate' | 'reroll' | 'trial' | 'coins';
+export type RewardedPlacement = 'double' | 'crate' | 'reroll' | 'trial' | 'coins' | 'wheel';
 
 interface Provider {
   init(): Promise<void>;

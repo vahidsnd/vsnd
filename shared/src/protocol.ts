@@ -1,5 +1,6 @@
 import type { GameEvent, GameState, MatchConfig, FighterState, ProjectileState } from './types.ts';
 import type { Profile, RewardResult } from './economy.ts';
+import type { ChatMsg } from './social.ts';
 
 export type QueueMode = 'ranked' | 'casual';
 export type QueueFormat = '1v1' | '2v2' | 'ffa';
@@ -39,9 +40,12 @@ export type ServerMsg =
   | { t: 'room'; room: RoomInfo | null }
   | { t: 'emote'; slot: number; id: number }
   | { t: 'pong'; ts: number }
+  | { t: 'chat'; msg: ChatMsg }
+  | { t: 'social'; kind: string }
+  | { t: 'profile'; profile: Profile }
   | { t: 'error'; msg: string };
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 export const SNAPSHOT_EVERY = 2;   // frames (30 Hz)
 export const INPUT_REDUNDANCY = 4; // inputs repeated per packet against packet loss
 
@@ -51,7 +55,7 @@ const F_KEYS = [
   'action', 'af', 'move', 'charge', 'hitIds', 'multiTick', 'hitlag', 'hitstun', 'shield', 'shieldStun',
   'invuln', 'intang', 'fastFall', 'dropThrough', 'airdodged', 'usedRecovery', 'ledgeRegrab', 'ledgeSide',
   'grabPartner', 'respawn', 'inp', 'prev', 'tapX', 'tapY', 'tapT', 'lastHitBy', 'lastHitMove', 'combo',
-  'lag', 'grabT', 'ledgeGrabs', 'usedSide',
+  'lag', 'grabT', 'ledgeGrabs', 'usedSide', 'mana',
 ] as const satisfies readonly (keyof FighterState)[];
 
 const r2 = (v: unknown) => (typeof v === 'number' && !Number.isInteger(v) ? Math.round(v * 100) / 100 : v);

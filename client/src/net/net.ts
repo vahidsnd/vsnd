@@ -46,6 +46,7 @@ class Net {
           this.startPing();
           finish(true);
         }
+        if (m.t === 'profile') backend.applyServerProfile(m.profile);
         if (m.t === 'pong') this.ping = this.ping ? this.ping * 0.8 + (performance.now() - m.ts) * 0.2 : performance.now() - m.ts;
         this.handlers.get(m.t)?.forEach((h) => h(m));
       };

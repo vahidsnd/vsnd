@@ -12,7 +12,7 @@ const KEYMAP: Record<string, number> = {
   KeyW: Btn.UP, ArrowUp: Btn.UP,
   KeyS: Btn.DOWN, ArrowDown: Btn.DOWN,
   Space: Btn.JUMP, KeyJ: Btn.ATTACK, KeyK: Btn.SPECIAL, KeyL: Btn.SHIELD, ShiftLeft: Btn.SHIELD,
-  KeyU: Btn.GRAB, KeyI: Btn.STRONG, KeyZ: Btn.ATTACK, KeyX: Btn.SPECIAL, KeyC: Btn.JUMP, KeyV: Btn.SHIELD,
+  KeyU: Btn.GRAB, KeyI: Btn.STRONG, KeyE: Btn.MAGIC, KeyO: Btn.MAGIC, KeyZ: Btn.ATTACK, KeyX: Btn.SPECIAL, KeyC: Btn.JUMP, KeyV: Btn.SHIELD,
 };
 
 export class KeyboardSource implements InputSource {
@@ -51,6 +51,7 @@ export class GamepadSource implements InputSource {
     if (pressed(1)) b |= Btn.SPECIAL;
     if (pressed(2) || pressed(3)) b |= Btn.JUMP;
     if (pressed(4)) b |= Btn.GRAB;
+    if (pressed(10) || pressed(11)) b |= Btn.MAGIC;
     if (pressed(5) || pressed(6) || pressed(7)) b |= Btn.SHIELD;
     // right stick = smash attacks in that direction
     const rx = gp.axes[2] ?? 0, ry = gp.axes[3] ?? 0;
@@ -85,6 +86,7 @@ export class TouchControls implements InputSource {
         <button data-b="${Btn.SHIELD}" class="tb tb-shield">${svgHtml('shield', 22)}</button>
         <button data-b="${Btn.GRAB}" class="tb tb-grab">${svgHtml('grab', 22)}</button>
         <button data-b="${Btn.STRONG}" class="tb tb-smash">${svgHtml('zap', 22)}</button>
+        <button data-b="${Btn.MAGIC}" class="tb tb-magic">${svgHtml('sparkles', 22)}</button>
         <button data-b="${Btn.JUMP}" class="tb tb-jump"><span>${svgHtml('up', 22)}<small>${t('btnJump')}</small></span></button>
         <button data-b="${Btn.SPECIAL}" class="tb tb-special"><span>B<small>${t('btnSpecial')}</small></span></button>
         <button data-b="${Btn.ATTACK}" class="tb tb-attack"><span>A<small>${t('btnAttack')}</small></span></button>

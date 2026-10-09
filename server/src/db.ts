@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { newProfile, refreshDaily, type Profile } from '@nb/shared';
+import { newProfile, newSocialDb, refreshDaily, clanTouch, type Profile, type SocialCtx, type SocialDb } from '@nb/shared';
 import { config } from './config.ts';
 
 /**
@@ -17,15 +17,17 @@ interface UserRec {
   banned?: boolean;
 }
 
-interface DbShape { users: Record<string, UserRec>; byToken: Record<string, string>; usedPurchaseTokens: Record<string, string> }
+interface DbShape { users: Record<string, UserRec>; byToken: Record<string, string>; usedPurchaseTokens: Record<string, string>; social: SocialDb }
 
 const file = path.join(config.dataDir, 'db.json');
-let db: DbShape = { users: {}, byToken: {}, usedPurchaseTokens: {} };
+let db: DbShape = { users: {}, byToken: {}, usedPurchaseTokens: {}, social: newSocialDb() };
 let dirty = false;
 
 export function loadDb() {
   fs.mkdirSync(config.dataDir, { recursive: true });
   if (fs.existsSync(file)) db = JSON.parse(fs.readFileSync(file, 'utf8'));
+  db.social ??= newSocialDb();
+  db.social.rate = {};
   setInterval(flush, 5000).unref();
   process.on('SIGINT', () => { flush(); process.exit(0); });
   process.on('SIGTERM', () => { flush(); process.exit(0); });
@@ -34,7 +36,7 @@ export function loadDb() {
 export function flush() {
   if (!dirty) return;
   const tmp = file + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(db));
+  fs.writeFileSync(tmp, JSON.stringify(db, (k, v) => (k === 'rate' ? undefined : v)));
   fs.renameSync(tmp, file);
   dirty = false;
 }
@@ -56,8 +58,9 @@ export function userByToken(token: string | undefined | null): UserRec | null {
   if (!token) return null;
   const id = db.byToken[token];
   const u = id ? db.users[id] : null;
-  if (!u || u.banned) return null;
+  if (!u || u.banned || db.social.bans[u.profile.id]) return null;
   refreshDaily(u.profile);
+  clanTouch(socialCtx(), u.profile);
   return u;
 }
 
@@ -84,3 +87,13 @@ export function sanitizeName(name?: string) {
 }
 
 export type { UserRec };
+
+export function socialDb() { return db.social; }
+/** Context for the shared social engine: every profile is reachable on the server. */
+export function socialCtx(): SocialCtx {
+  return { db: db.social, now: Date.now(), rand: Math.random, profileOf: (id) => db.users[id]?.profile ?? null };
+}
+export function isBanned(token: string) {
+  const id = db.byToken[token];
+  return !!id && !!db.social.bans[id];
+}

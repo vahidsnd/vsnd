@@ -2,10 +2,12 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { PROTOCOL_VERSION, type ClientMsg } from '@nb/shared';
+import { PROTOCOL_VERSION, featureUnlocked, type ClientMsg } from '@nb/shared';
 import { config } from './config.ts';
 import { loadDb, userByToken, type UserRec } from './db.ts';
 import { handleApi } from './api.ts';
+import { socketsByUser } from './sockets.ts';
+import { socialTick } from './social.ts';
 import { activeMatches, matchByUser, send } from './match.ts';
 import { dequeue, enqueue, inMatch, matchmakeTick, queuedCount, roomCreate, roomJoin, roomLeave, roomStart, roomUpdate } from './matchmaker.ts';
 
@@ -27,7 +29,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 16 * 1024 });
-const socketsByUser = new Map<string, WebSocket>();
 
 wss.on('connection', (ws) => {
   let user: UserRec | null = null;
@@ -51,13 +52,14 @@ wss.on('connection', (ws) => {
       case 'in': matchByUser.get(user.profile.id)?.onInput(user, msg.s, msg.b); break;
       case 'queue':
         if (inMatch(user)) return;
+        if (!config.unlockAll && !featureUnlocked(user.profile, msg.mode === 'ranked' ? 'ranked' : 'online')) return send(ws, { t: 'error', msg: 'locked' });
         enqueue({ user, ws, mode: msg.mode === 'ranked' ? 'ranked' : 'casual', format: ['1v1', '2v2', 'ffa'].includes(msg.format) ? msg.format : '1v1', fighter: String(msg.fighter), skin: Number(msg.skin) | 0 });
         break;
       case 'cancel': dequeue(user); break;
       case 'forfeit': matchByUser.get(user.profile.id)?.forfeit(user); break;
       case 'emote': matchByUser.get(user.profile.id)?.emote(user, msg.id); break;
-      case 'room_create': roomCreate(user, ws, String(msg.fighter), Number(msg.skin) | 0); break;
-      case 'room_join': roomJoin(user, ws, String(msg.code), String(msg.fighter), Number(msg.skin) | 0); break;
+      case 'room_create': if (!config.unlockAll && !featureUnlocked(user.profile, 'friends')) return send(ws, { t: 'error', msg: 'locked' }); roomCreate(user, ws, String(msg.fighter), Number(msg.skin) | 0); break;
+      case 'room_join': if (!config.unlockAll && !featureUnlocked(user.profile, 'friends')) return send(ws, { t: 'error', msg: 'locked' }); roomJoin(user, ws, String(msg.code), String(msg.fighter), Number(msg.skin) | 0); break;
       case 'room_update': roomUpdate(user, msg); break;
       case 'room_start': roomStart(user); break;
       case 'room_leave': roomLeave(user); break;
@@ -73,6 +75,7 @@ wss.on('connection', (ws) => {
 });
 
 setInterval(matchmakeTick, 1000).unref();
+setInterval(socialTick, 30_000).unref();
 setInterval(() => {
   console.log(`[stats] online=${socketsByUser.size} queued=${queuedCount()} matches=${activeMatches.size}`);
 }, 60_000).unref();

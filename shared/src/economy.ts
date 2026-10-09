@@ -1,4 +1,5 @@
 import { FIGHTERS, getFighter } from './fighters.ts';
+import { clanBonus, migrateProgress, trackLeague, leagueSeasonRollover, MAP_SIZE, type Mail } from './progress.ts';
 
 // =====================================================================================
 //  Economy design
@@ -44,13 +45,28 @@ export interface Profile {
   history: HistoryEntry[];
   ach: string[];          // claimed achievement ids
   tutorial: string[];     // completed tutorials / seen feature intros
-  daily: { day: string; quests: Quest[]; firstWin: boolean; rerolls: number; ads: number; crateAt: number };
+  daily: { day: string; quests: Quest[]; firstWin: boolean; rerolls: number; ads: number; crateAt: number; fights: number; ms: number[]; cardReq: number; donated: number };
   login: { lastDay: string; streak: number; claimed: boolean };
   pass: { season: number; xp: number; premium: boolean; free: number[]; prem: number[] };
   offers: { starter: boolean };
   lastReward: { id: string; coins: number; doubled: boolean } | null;
   settings: { lang: 'fa' | 'en'; sfx: boolean; music: boolean; controls: 'buttons' | 'gestures' };
+  // ---- progression (see progress.ts) ----
+  runes: number;
+  cards: Record<string, number>;
+  upg: Record<string, { atk: number; def: number; hp: number }>;
+  spells: Record<string, number>;          // spell id -> level
+  equip: Record<string, string>;           // fighter id -> spell id
+  map: { cleared: number; stars: number[]; chests: number[] };
+  league: { season: number; best: number; claimed: string[] };
+  inbox: Mail[];
+  wheel: { day: string; free: boolean; ads: number };
+  clan: ClanRef | null;
+  /** test builds only: unlock every feature locally */
+  dev?: boolean;
 }
+
+export interface ClanRef { id: string; name: string; tag: string; level: number; role: 'leader' | 'co' | 'elder' | 'member'; badge: number }
 
 // ---- catalog ------------------------------------------------------------------------
 export const STARTER_FIGHTERS = FIGHTERS.filter((f) => f.price.coins === 0 && f.price.gems === 0).map((f) => f.id);
@@ -122,16 +138,20 @@ export function shopCatalog(): ShopItem[] {
 
 // ---- crates (odds are disclosed in the UI, required by Google Play policy) --------------
 export const CRATE_ODDS = [
-  { kind: 'coins', min: 400, max: 1200, weight: 55 },
-  { kind: 'gems', min: 15, max: 40, weight: 20 },
-  { kind: 'skin', weight: 20 },
-  { kind: 'fighter', weight: 5 },
+  { kind: 'coins', min: 400, max: 1200, weight: 40 },
+  { kind: 'gems', min: 15, max: 40, weight: 12 },
+  { kind: 'cards', min: 5, max: 15, weight: 22 },
+  { kind: 'runes', min: 10, max: 30, weight: 10 },
+  { kind: 'skin', weight: 12 },
+  { kind: 'fighter', weight: 4 },
 ] as const;
 export const FREE_CRATE_COOLDOWN = 4 * 3600 * 1000;
 
 export type CrateResult =
   | { kind: 'coins'; amount: number }
   | { kind: 'gems'; amount: number }
+  | { kind: 'runes'; amount: number }
+  | { kind: 'cards'; amount: number; id: string }
   | { kind: 'skin'; id: string; dupCoins?: number }
   | { kind: 'fighter'; id: string; dupCoins?: number };
 
@@ -140,10 +160,17 @@ export function openCrate(p: Profile, rand: () => number = Math.random): CrateRe
   let roll = rand() * total;
   let pick: (typeof CRATE_ODDS)[number] = CRATE_ODDS[0];
   for (const o of CRATE_ODDS) { if ((roll -= o.weight) < 0) { pick = o; break; } }
-  if (pick.kind === 'coins' || pick.kind === 'gems') {
+  if (pick.kind === 'coins' || pick.kind === 'gems' || pick.kind === 'runes') {
     const amount = Math.round(pick.min + rand() * (pick.max - pick.min));
-    if (pick.kind === 'coins') p.coins += amount; else p.gems += amount;
+    if (pick.kind === 'coins') p.coins += amount; else if (pick.kind === 'gems') p.gems += amount; else p.runes = (p.runes ?? 0) + amount;
     return { kind: pick.kind, amount };
+  }
+  if (pick.kind === 'cards') {
+    const amount = Math.round(pick.min + rand() * (pick.max - pick.min));
+    const id = p.fighters[Math.floor(rand() * p.fighters.length)];
+    p.cards ??= {};
+    p.cards[id] = (p.cards[id] ?? 0) + amount;
+    return { kind: 'cards', amount, id };
   }
   if (pick.kind === 'skin') {
     const pool = FIGHTERS.flatMap((f) => f.skins.slice(1, 3).map((s) => s.id)).filter((id) => !p.skins.includes(id));
@@ -171,12 +198,16 @@ export function newProfile(id: string, name: string, now = Date.now()): Profile 
     rank: { mmr: 1000, peak: 1000, wins: 0, losses: 0, season: currentSeason(now), streak: 0 },
     stats: { matches: 0, wins: 0, kos: 0, falls: 0, dmg: 0, online: 0, bestCombo: 0, flawless: 0 },
     fstats: {}, history: [], ach: [], tutorial: [],
-    daily: { day: '', quests: [], firstWin: false, rerolls: 1, ads: 0, crateAt: 0 },
+    daily: { day: '', quests: [], firstWin: false, rerolls: 1, ads: 0, crateAt: 0, fights: 0, ms: [], cardReq: 0, donated: 0 },
     login: { lastDay: '', streak: 0, claimed: false },
     pass: { season: currentSeason(now), xp: 0, premium: false, free: [], prem: [] },
     offers: { starter: false },
     lastReward: null,
     settings: { lang: 'fa', sfx: true, music: true, controls: 'buttons' },
+    runes: 0, cards: {}, upg: {}, spells: { nova: 1 }, equip: {},
+    map: { cleared: 0, stars: [], chests: [] },
+    league: { season: currentSeason(now), best: 0, claimed: [] },
+    inbox: [], wheel: { day: '', free: false, ads: 0 }, clan: null,
   };
   refreshDaily(p, now);
   return p;
@@ -200,14 +231,14 @@ export function seasonEndsAt(now: number) {
 export function migrateProfile(p: Profile): Profile {
   p.stats.bestCombo ??= 0; p.stats.flawless ??= 0;
   p.fstats ??= {}; p.history ??= []; p.ach ??= []; p.tutorial ??= [];
-  return p;
+  return migrateProgress(p);
 }
 
 export function refreshDaily(p: Profile, now = Date.now(), rand: () => number = Math.random) {
   migrateProfile(p);
   const today = dayKey(now);
   if (p.daily.day !== today) {
-    p.daily = { day: today, quests: rollQuests(p, rand), firstWin: false, rerolls: 1, ads: 0, crateAt: p.daily.crateAt };
+    p.daily = { day: today, quests: rollQuests(p, rand), firstWin: false, rerolls: 1, ads: 0, crateAt: p.daily.crateAt, fights: 0, ms: [], cardReq: 0, donated: 0 };
   }
   if (p.login.lastDay !== today) {
     const yesterday = dayKey(now - 86400000);
@@ -219,6 +250,7 @@ export function refreshDaily(p: Profile, now = Date.now(), rand: () => number = 
   if (p.pass.season !== season) {
     p.pass = { season, xp: 0, premium: false, free: [], prem: [] };
   }
+  leagueSeasonRollover(p, season, now);
   if (p.rank.season !== season) {
     // soft reset towards 1000
     p.rank.mmr = Math.round(1000 + (p.rank.mmr - 1000) * 0.5);
@@ -387,7 +419,7 @@ export function grantIap(p: Profile, productId: string): boolean {
 // ---- match rewards ---------------------------------------------------------------------------
 export interface MatchSummary {
   matchId: string;
-  mode: 'ranked' | 'casual' | 'cpu' | 'private' | 'training';
+  mode: 'ranked' | 'casual' | 'cpu' | 'private' | 'training' | 'map';
   won: boolean;
   placement: number;     // 1 = first
   players: number;
@@ -409,24 +441,37 @@ export interface RewardResult {
   questsDone: string[];
   mmrDelta?: number;
   canDouble: boolean;
+  runes: number;
+  cards: number;
 }
 
 export function applyMatch(p: Profile, m: MatchSummary, now = Date.now()): RewardResult {
   refreshDaily(p, now);
-  if (m.mode === 'training') return { coins: 0, gems: 0, xp: 0, firstWin: false, levelUps: [], questsDone: [], canDouble: false };
+  if (m.mode === 'training') return { coins: 0, gems: 0, xp: 0, firstWin: false, levelUps: [], questsDone: [], canDouble: false, runes: 0, cards: 0 };
   const online = m.mode === 'ranked' || m.mode === 'casual';
-  const mult = m.mode === 'ranked' ? 1.25 : m.mode === 'cpu' ? 0.6 : 1;
+  const offline = m.mode === 'cpu' || m.mode === 'map';
+  const bonus = clanBonus(p.clan?.level ?? 0);
+  const mult = (m.mode === 'ranked' ? 1.25 : offline ? 0.6 : 1) * (1 + bonus.coins);
   const shortGame = m.durationSec < 25; // anti-farm: very short games give little
   let coins = (m.won ? 45 : 18) + m.kos * 6 + Math.max(0, m.players - m.placement) * 5;
   coins = Math.round(coins * mult * (shortGame ? 0.2 : 1));
   let gems = 0;
-  let xp = Math.round(((m.won ? 60 : 35) + m.kos * 5) * (shortGame ? 0.2 : 1) * (m.mode === 'cpu' ? 0.7 : 1));
+  let xp = Math.round(((m.won ? 60 : 35) + m.kos * 5) * (shortGame ? 0.2 : 1) * (offline ? 0.7 : 1) * (1 + bonus.xp));
   let firstWin = false;
   if (m.won && !p.daily.firstWin && !shortGame) {
     p.daily.firstWin = true; firstWin = true; coins += 100; gems += 5; xp += 50;
   }
   p.coins += coins; p.gems += gems;
   const levelUps = addXp(p, xp);
+  // runes & fighter cards
+  let runes = 0, cards = 0;
+  if (!shortGame) {
+    runes = m.won ? (m.mode === 'ranked' ? 5 : online ? 3 : 1) + bonus.runes : online ? 1 : 0;
+    cards = m.won ? (online ? 2 : 1) : online ? 1 : 0;
+  }
+  p.runes += runes;
+  if (cards && getFighter(m.fighter).id === m.fighter) p.cards[m.fighter] = (p.cards[m.fighter] ?? 0) + cards;
+  p.daily.fights++;
 
   p.stats.matches++;
   if (m.won) p.stats.wins++;
@@ -457,7 +502,8 @@ export function applyMatch(p: Profile, m: MatchSummary, now = Date.now()): Rewar
     if (q.progress >= q.target) questsDone.push(q.id);
   }
   p.lastReward = { id: m.matchId, coins, doubled: false };
-  return { coins, gems, xp, firstWin, levelUps, questsDone, canDouble: coins > 0 };
+  if (m.mode === 'ranked') trackLeague(p);
+  return { coins, gems, xp, firstWin, levelUps, questsDone, canDouble: coins > 0, runes, cards };
 }
 
 /** Rewarded-ad "double coins" on the results screen. */
@@ -480,7 +526,7 @@ export function skinOwned(p: Profile, fighterId: string, idx: number) {
 // ---- achievements ----------------------------------------------------------------------------
 export interface Achievement {
   id: string; name: string; nameFa: string; desc: string; descFa: string;
-  goal: number; progress: (p: Profile) => number; reward: { coins?: number; gems?: number };
+  goal: number; progress: (p: Profile) => number; reward: { coins?: number; gems?: number; runes?: number };
 }
 const winsWith = (p: Profile) => FIGHTERS.filter((f) => (p.fstats[f.id]?.w ?? 0) > 0).length;
 export const ACHIEVEMENTS: Achievement[] = [
@@ -494,8 +540,14 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'combo_5', name: 'Combo Artist', nameFa: 'هنرمند کمبو', desc: 'Land a 5-hit combo', descFa: 'یک کمبوی ۵ ضربه‌ای بزن', goal: 5, progress: (p) => p.stats.bestCombo, reward: { coins: 400, gems: 10 } },
   { id: 'flawless_3', name: 'Untouchable', nameFa: 'دست‌نیافتنی', desc: 'Win 3 matches without falling', descFa: '۳ برد بدون سقوط', goal: 3, progress: (p) => p.stats.flawless, reward: { coins: 600, gems: 15 } },
   { id: 'online_10', name: 'Netplayer', nameFa: 'بازیکن آنلاین', desc: 'Play 10 online matches', descFa: '۱۰ مسابقه آنلاین', goal: 10, progress: (p) => p.stats.online, reward: { coins: 600 } },
-  { id: 'gold_rank', name: 'Golden', nameFa: 'طلایی', desc: 'Reach Gold rank', descFa: 'به رتبه طلا برس', goal: 1200, progress: (p) => p.rank.peak, reward: { coins: 800, gems: 30 } },
-  { id: 'diamond_rank', name: 'Diamond Mind', nameFa: 'ذهن الماسی', desc: 'Reach Diamond rank', descFa: 'به رتبه الماس برس', goal: 1600, progress: (p) => p.rank.peak, reward: { coins: 2000, gems: 80 } },
+  { id: 'gold_rank', name: 'Golden', nameFa: 'طلایی', desc: 'Reach the Gold league', descFa: 'به لیگ طلایی برس', goal: 1300, progress: (p) => p.rank.peak, reward: { coins: 800, gems: 30 } },
+  { id: 'crystal_rank', name: 'Crystal Mind', nameFa: 'ذهن کریستالی', desc: 'Reach the Crystal league', descFa: 'به لیگ کریستالی برس', goal: 1550, progress: (p) => p.rank.peak, reward: { coins: 2000, gems: 80 } },
+  { id: 'legend_rank', name: 'Living Legend', nameFa: 'افسانه زنده', desc: 'Reach the Legendary league', descFa: 'به لیگ افسانه‌ای برس', goal: 1800, progress: (p) => p.rank.peak, reward: { coins: 5000, gems: 200 } },
+  { id: 'map_5', name: 'Explorer', nameFa: 'کاوشگر', desc: 'Clear 5 map stages', descFa: '۵ مرحله نقشه را تمام کن', goal: 5, progress: (p) => p.map?.cleared ?? 0, reward: { coins: 400, runes: 20 } },
+  { id: 'map_all', name: 'World Conqueror', nameFa: 'فاتح جهان', desc: 'Clear the whole world map', descFa: 'کل نقشه جهان را تمام کن', goal: MAP_SIZE, progress: (p) => p.map?.cleared ?? 0, reward: { coins: 2000, gems: 60 } },
+  { id: 'stars_45', name: 'Star Hunter', nameFa: 'شکارچی ستاره', desc: 'Collect 45 map stars', descFa: '۴۵ ستاره در نقشه جمع کن', goal: 45, progress: (p) => (p.map?.stars ?? []).reduce((a, b) => a + (b || 0), 0), reward: { gems: 50 } },
+  { id: 'upgrade_10', name: 'Forged', nameFa: 'آبدیده', desc: 'Buy 10 fighter upgrades', descFa: '۱۰ ارتقای مبارز بخر', goal: 10, progress: (p) => Object.values(p.upg ?? {}).reduce((a, u) => a + u.atk + u.def + u.hp, 0), reward: { coins: 800, runes: 40 } },
+  { id: 'spells_4', name: 'Arcanist', nameFa: 'جادوگر', desc: 'Learn 4 spells', descFa: '۴ جادو یاد بگیر', goal: 4, progress: (p) => Object.keys(p.spells ?? {}).length, reward: { gems: 40 } },
   { id: 'level_10', name: 'Rising Star', nameFa: 'ستاره نوظهور', desc: 'Reach level 10', descFa: 'به سطح ۱۰ برس', goal: 10, progress: (p) => p.level, reward: { coins: 700, gems: 20 } },
   { id: 'all_rounder', name: 'Jack of All Trades', nameFa: 'همه‌فن‌حریف', desc: 'Win with every fighter', descFa: 'با همه مبارزها ببر', goal: FIGHTERS.length, progress: winsWith, reward: { coins: 1500, gems: 50 } },
   { id: 'collector', name: 'Collector', nameFa: 'کلکسیونر', desc: 'Own every fighter', descFa: 'همه مبارزها را داشته باش', goal: FIGHTERS.length, progress: (p) => p.fighters.length, reward: { gems: 60 } },
@@ -512,7 +564,7 @@ export function claimAchievement(p: Profile, id: string): Achievement | null {
   const st = achievementState(p, a);
   if (!st.done || st.claimed) return null;
   p.ach.push(id);
-  p.coins += a.reward.coins ?? 0; p.gems += a.reward.gems ?? 0;
+  p.coins += a.reward.coins ?? 0; p.gems += a.reward.gems ?? 0; p.runes += (a.reward as { runes?: number }).runes ?? 0;
   return a;
 }
 export function claimableAchievements(p: Profile) {
@@ -534,20 +586,33 @@ export function completeTutorial(p: Profile, id: string): { coins: number; gems:
   return TUTORIAL_REWARD;
 }
 
-export type FeatureId = 'quests' | 'shop' | 'achievements' | 'pass' | 'friends' | 'ranked' | 'crates';
-/** Progressive onboarding: features open up as the player plays, each with its own guided intro. */
-export const FEATURES: { id: FeatureId; level?: number; matches?: number }[] = [
+export type FeatureId =
+  | 'quests' | 'shop' | 'achievements' | 'pass' | 'crates' | 'milestones' | 'cards' | 'spells' | 'wheel'
+  | 'online' | 'friends' | 'ranked' | 'clans' | 'chat' | 'clanwar';
+/**
+ * Progressive onboarding: features open up as the player plays, each with its own guided intro.
+ * Everything online (quick match, league, clans, chat) opens once the whole world map is cleared.
+ */
+export const FEATURES: { id: FeatureId; level?: number; matches?: number; map?: number }[] = [
   { id: 'quests', matches: 1 },
+  { id: 'milestones', matches: 1 },
   { id: 'shop', matches: 1 },
+  { id: 'cards', map: 1 },
   { id: 'achievements', matches: 2 },
-  { id: 'pass', matches: 3 },
-  { id: 'crates', matches: 3 },
-  { id: 'friends', level: 2 },
-  { id: 'ranked', level: 3 },
+  { id: 'wheel', map: 2 },
+  { id: 'spells', map: 3 },
+  { id: 'crates', map: 3 },
+  { id: 'pass', map: 4 },
+  { id: 'online', map: MAP_SIZE },
+  { id: 'friends', map: MAP_SIZE },
+  { id: 'ranked', map: MAP_SIZE },
+  { id: 'chat', map: MAP_SIZE },
+  { id: 'clans', map: MAP_SIZE },
+  { id: 'clanwar', map: MAP_SIZE },
 ];
 export function featureUnlocked(p: Profile, id: FeatureId) {
   const f = FEATURES.find((x) => x.id === id);
-  if (!f) return true;
-  return p.level >= (f.level ?? 0) && p.stats.matches >= (f.matches ?? 0);
+  if (!f || p.dev) return true;
+  return p.level >= (f.level ?? 0) && p.stats.matches >= (f.matches ?? 0) && (p.map?.cleared ?? 0) >= (f.map ?? 0);
 }
 export function featureRequirement(id: FeatureId) { return FEATURES.find((x) => x.id === id)!; }

@@ -1,7 +1,9 @@
 import {
   ACHIEVEMENTS, CRATE_ODDS, FIGHTERS, IAP_PRODUCTS, PASS_TIERS, PASS_XP_PER_TIER, achievementState, passReward, passTier, seasonEndsAt,
-  shopCatalog, skinPrice, tierFor, getFighter, dayKey, xpForLevel, featureUnlocked, type PassReward,
+  shopCatalog, skinPrice, tierFor, getFighter, dayKey, xpForLevel, featureUnlocked, fighterPower, type PassReward,
 } from '@nb/shared';
+import { social } from '../services/social.ts';
+import { upgradePanel, milestonesBlock } from './progress.ts';
 import { backend } from '../services/backend.ts';
 import { billing } from '../services/billing.ts';
 import { ads } from '../services/ads.ts';
@@ -9,7 +11,7 @@ import { prefs, setPref } from '../services/prefs.ts';
 import { store } from '../services/platform.ts';
 import { audio } from '../game/audio.ts';
 import { setLang, t, num, isFa, loc, duration } from '../i18n.ts';
-import { h, show, topBar, fighterCanvas, modal, toast, rewardReveal, crateToItems, icon, currency, confirmBox, getFighterBySkin, type Screen, type Child } from './dom.ts';
+import { h, show, topBar, fighterCanvas, modal, toast, rewardReveal, crateToItems, grantedToItems, icon, currency, confirmBox, getFighterBySkin, type Screen, type Child } from './dom.ts';
 import { svg } from './icons.ts';
 import { specialsList } from './movelist.ts';
 import { introOnce, resetIntros } from './tutorial.ts';
@@ -32,6 +34,8 @@ export function fightersScreen(selected = backend.profile.selFighter): Screen {
     return h('button', { class: `fcard ${f.id === def.id ? 'sel' : ''} ${own ? '' : 'locked'}`, onclick: () => show(() => fightersScreen(f.id)) },
       fighterCanvas(f.id, backend.selectedSkin(f.id), 80),
       h('span', {}, loc(f)),
+      own && featureUnlocked(p, 'cards') ? h('span', { class: 'pw' }, num(fighterPower(p, f.id))) : null,
+      own && (p.cards[f.id] ?? 0) > 0 ? h('span', { class: 'cards-n' }, num(p.cards[f.id])) : null,
       own ? (p.selFighter === f.id ? h('span', { class: 'tag ok' }, svg('check', 12)) : null) : h('span', { class: 'tag lock' }, svg('lock', 12)));
   }));
 
@@ -83,6 +87,7 @@ export function fightersScreen(selected = backend.profile.selFighter): Screen {
     h('div', { class: 'fd-info' },
       h('h2', {}, loc(def), h('small', {}, isFa() ? def.titleFa : def.title)),
       stats,
+      owned && featureUnlocked(p, 'cards') ? upgradePanel(def.id, () => show(() => fightersScreen(def.id))) : null,
       specialsList(def.id),
       fs ? h('small', { class: 'muted' }, `${t('matchesShort')}: ${num(fs.m)} · ${t('wins')}: ${num(fs.w)}`) : null,
       h('div', { class: 'skins-wrap' }, skins),
@@ -328,6 +333,7 @@ export function questsScreen(): Screen {
   const el = h('div', { class: 'page quests' },
     topBar({ back: home, title: t('quests') }),
     h('div', { class: 'scroll narrow' },
+      featureUnlocked(p, 'milestones') ? milestonesBlock(() => show(questsScreen)) : null,
       h('div', { class: 'row space' }, h('h3', {}, t('dailyQuests')), h('small', { class: 'muted' }, `${t('resetIn')} ${duration(nextReset - Date.now())}`)),
       cards,
       h('button', { class: 'btn ghost', onclick: () => import('./home.ts').then((m) => m.loginPopup()) }, svg('calendar', 16), t('dailyLogin'), p.login.claimed ? svg('check', 14) : null),
@@ -421,10 +427,26 @@ export function profileScreen(): Screen {
 // ============================================================================================
 // Leaderboard
 // ============================================================================================
-export function leaderboardScreen(): Screen {
+export function leaderboardScreen(tab: 'players' | 'clans' = 'players'): Screen {
   const p = backend.profile;
   const tier = tierFor(p.rank.mmr);
   const list = h('div', { class: 'scroll narrow' }, h('div', { class: 'muted center' }, '…'));
+  const tabs = h('div', { class: 'tabs' },
+    h('button', { class: `tab ${tab === 'players' ? 'on' : ''}`, onclick: () => show(() => leaderboardScreen('players')) }, isFa() ? 'بازیکن‌ها' : 'Players'),
+    h('button', { class: `tab ${tab === 'clans' ? 'on' : ''}`, onclick: () => show(() => leaderboardScreen('clans')) }, isFa() ? 'قبیله‌ها' : 'Clans'));
+  if (tab === 'clans') {
+    social().clanLeaderboard().then((rows) => {
+      list.innerHTML = '';
+      if (!rows.length) { list.append(h('div', { class: 'muted center' }, t('lbEmpty'))); return; }
+      for (const r of rows) list.append(h('div', { class: `lb-row ${r.id === p.clan?.id ? 'me' : ''}` },
+        h('span', { class: `pos ${r.pos <= 3 ? 'p' + r.pos : ''}` }, r.pos <= 3 ? svg('trophy', 18) : num(r.pos)),
+        h('span', { class: 'lb-clan' }, svg('shield', 26)),
+        h('div', { class: 'who' }, h('b', {}, r.name, h('small', { class: 'muted' }, ` [${r.tag}]`)),
+          h('small', {}, `${isFa() ? 'سطح' : 'Lv'} ${num(r.level)} · ${num(r.members)}/15 · ${isFa() ? 'برد جنگ' : 'war wins'} ${num(r.warWins)}`)),
+        h('b', {}, num(r.power))));
+    }).catch(() => { list.innerHTML = ''; list.append(h('div', { class: 'muted center' }, t('noLeaderboard'))); });
+    return { el: h('div', { class: 'page leaderboard' }, topBar({ back: home, title: t('leaderboard') }), tabs, list) };
+  }
   backend.leaderboard().then((rows) => {
     list.innerHTML = '';
     if (!rows.length) { list.append(h('div', { class: 'muted center' }, backend.online ? t('lbEmpty') : t('noLeaderboard'))); return; }
@@ -440,6 +462,7 @@ export function leaderboardScreen(): Screen {
   }).catch(() => { list.innerHTML = ''; list.append(h('div', { class: 'muted center' }, t('noLeaderboard'))); });
   const el = h('div', { class: 'page leaderboard' },
     topBar({ back: home, title: t('leaderboard') }),
+    tabs,
     h('div', { style: { padding: '0 var(--pad) 8px' } }, h('div', { class: 'lb-me narrow', style: { borderColor: tier.tier.color } },
       h('b', { style: { color: tier.tier.color } }, isFa() ? tier.tier.nameFa : tier.tier.name),
       h('span', {}, `${t('mmr')}: ${num(p.rank.mmr)} · ${t('wins')} ${num(p.rank.wins)} · ${t('losses')} ${num(p.rank.losses)}`))),
@@ -459,6 +482,7 @@ export function settingsScreen(): Screen {
     h('div', { class: 'field' }, h('span', {}, label), h('div', { class: 'seg' }, opts.map(([v, txt]) => h('button', { class: v === value ? 'on' : '', onclick: () => { fn(v); show(settingsScreen); } }, txt))));
   const range = (label: string, value: number, min: number, max: number, fn: (v: number) => void) =>
     h('div', { class: 'field' }, h('span', {}, label), h('input', { type: 'range', min, max, step: 0.05, value, onchange: (e: Event) => fn(Number((e.target as HTMLInputElement).value)) }));
+  const codeIn = h('input', { class: 'input', placeholder: 'NEON2026', dir: 'ltr', maxlength: 24, style: { textTransform: 'uppercase' } }) as HTMLInputElement;
   const srv = h('input', { class: 'input', value: store.get('server', ''), placeholder: 'https://your-server', dir: 'ltr' }) as HTMLInputElement;
   const el = h('div', { class: 'page settings' },
     topBar({ back: home, title: t('settings') }),
@@ -480,12 +504,30 @@ export function settingsScreen(): Screen {
         h('div', { class: 'field' }, h('span', {}, t('server')), srv,
           h('button', { class: 'btn small accent', onclick: () => { store.set('server', srv.value.trim()); location.reload(); } }, t('save'))),
       ),
+      h('div', { class: 'field redeem' }, h('span', {}, svg('ticket', 16), isFa() ? 'کد هدیه / تخفیف' : 'Gift / promo code'), codeIn,
+        h('button', { class: 'btn small gold', onclick: async () => {
+          const code = codeIn.value.trim();
+          if (!code) return;
+          try {
+            const g = await social().redeem(code);
+            codeIn.value = '';
+            rewardReveal(isFa() ? 'کد فعال شد' : 'Code redeemed', grantedToItems(g));
+          } catch (e) {
+            const c = (e as Error).message;
+            const msg: Record<string, [string, string]> = { 'not-found': ['کد معتبر نیست', 'Invalid code'], expired: ['کد منقضی شده', 'Code expired'], 'used-up': ['ظرفیت کد تمام شده', 'Code fully used'], already: ['قبلاً استفاده کرده‌ای', 'Already used'], level: ['سطحت کافی نیست', 'Level too low'] };
+            toast((msg[c] ?? ['خطا', 'Error'])[isFa() ? 0 : 1], 'err');
+          }
+        } }, isFa() ? 'ثبت' : 'Redeem')),
+      !backend.online ? h('div', { class: 'field dev' },
+        h('span', {}, svg('zap', 16), isFa() ? 'حالت تست: باز کردن همه قابلیت‌ها' : 'Test mode: unlock every feature'),
+        h('input', { type: 'checkbox', checked: !!p.dev, onchange: (e: Event) => { backend.setDev((e.target as HTMLInputElement).checked); toast(t('saved'), 'ok'); } }),
+        h('small', { class: 'muted' }, isFa() ? 'فقط برای بررسی نسخه آزمایشی؛ روی سرور واقعی اثری ندارد.' : 'Only for reviewing the test build; has no effect on a real server.')) : null,
       h('div', { class: 'row', style: { justifyContent: 'flex-start' } },
         h('button', { class: 'btn accent', onclick: () => import('./play.ts').then((m) => m.startTutorial()) }, svg('help', 16), t('replayTutorial')),
         h('button', { class: 'btn ghost', onclick: () => { resetIntros(); toast(t('tipsReset'), 'ok'); } }, svg('refresh', 16), t('resetTips')),
       ),
       h('div', { class: 'help' }, h('b', {}, t('controls')), h('p', {}, t('keyboardHelp')), h('p', { class: 'muted' }, t('gamepadHelp'))),
-      h('small', { class: 'muted' }, `ID: ${p.id} · v1.2.0 · ${backend.online ? t('online') : t('offline')}`),
+      h('small', { class: 'muted' }, `ID: ${p.id} · v1.3.0 · ${backend.online ? t('online') : t('offline')}`),
     ),
   );
   return { el };

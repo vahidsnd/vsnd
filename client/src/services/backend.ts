@@ -1,6 +1,8 @@
 import {
   applyMatch, buyItem, claimAchievement, completeTutorial, migrateProfile, claimFreeCrate, claimLogin, claimPass, claimQuest, doubleLastReward, getFighter, grantIap,
   newProfile, refreshDaily, rerollQuest,
+  claimLeague, claimMail, claimMilestone, claimStarChest, clearMapNode, dayKey, equipSpell, learnSpell, spinWheel, upgradeSpell, upgradeStat,
+  type Granted, type MapClear, type StatKey,
   type BuyResult, type CrateResult, type MatchSummary, type PassReward, type Profile, type Quest, type RewardResult,
 } from '@nb/shared';
 import { serverHttp, store } from './platform.ts';
@@ -102,6 +104,29 @@ class Backend {
   reportCpu(summary: MatchSummary) {
     return this.run('/api/match/offline', { summary }, (p) => applyMatch(p, summary), (j) => j.reward as RewardResult | null);
   }
+  /** world-map match: normal match rewards + stars / first-clear reward */
+  reportMap(node: number, summary: MatchSummary) {
+    return this.run('/api/match/offline', { summary, node },
+      (p) => ({ reward: applyMatch(p, summary), map: clearMapNode(p, node, summary.won, summary.falls) }),
+      (j) => ({ reward: j.reward as RewardResult | null, map: j.map as MapClear | null }));
+  }
+  claimStarChest(idx: number) { return this.run('/api/map/chest', { idx }, (p) => claimStarChest(p, idx), (j) => j.granted as Granted | null); }
+  claimMilestone(idx: number) { return this.run('/api/milestone/claim', { idx }, (p) => claimMilestone(p, idx), (j) => j.granted as Granted | null); }
+  upgrade(fighter: string, stat: StatKey) { return this.run('/api/fighter/upgrade', { fighter, stat }, (p) => upgradeStat(p, fighter, stat), (j) => !!j.ok); }
+  learnSpell(id: string) { return this.run('/api/spell/learn', { id }, (p) => learnSpell(p, id), (j) => !!j.ok); }
+  upgradeSpell(id: string) { return this.run('/api/spell/upgrade', { id }, (p) => upgradeSpell(p, id), (j) => !!j.ok); }
+  equipSpell(fighter: string, id: string | null) { return this.run('/api/spell/equip', { fighter, id }, (p) => equipSpell(p, fighter, id), (j) => !!j.ok); }
+  claimLeague(key: string) { return this.run('/api/league/claim', { key }, (p) => claimLeague(p, key), (j) => j.granted as Granted | null); }
+  claimMail(id: string) { return this.run('/api/mail/claim', { id }, (p) => claimMail(p, id), (j) => j.granted as Granted | null); }
+  spinWheel(viaAd: boolean) {
+    return this.run('/api/wheel/spin', { viaAd }, (p) => spinWheel(p, dayKey(Date.now()), viaAd), (j) => j.result as { index: number; granted: Granted } | null);
+  }
+  /** generic authenticated call used by the social service */
+  api<T>(method: string, path: string, body?: unknown) { return this.req<T>(method, path, body); }
+  /** re-saves the local profile after an in-place change (offline demo) */
+  touch() { this.set(this.profile); }
+  /** test builds: unlock everything locally */
+  setDev(on: boolean) { this.profile.dev = on || undefined; this.set(this.profile); }
   claimAchievement(id: string) {
     return this.run('/api/ach/claim', { id }, (p) => { const a = claimAchievement(p, id); return a ? { id: a.id, reward: a.reward } : null; }, (j) => j.achievement as { id: string; reward: { coins?: number; gems?: number } } | null);
   }
@@ -113,7 +138,7 @@ class Backend {
   }
   seen(id: string) { return !!this.profile.tutorial?.includes(id); }
   /** apply a profile pushed by the match server */
-  applyServerProfile(p: Profile) { this.set(migrateProfile(p)); }
+  applyServerProfile(p: Profile) { const dev = this.profile?.dev; this.set(migrateProfile(p)); if (dev) this.profile.dev = dev; }
 
   async leaderboard(): Promise<{ pos: number; name: string; mmr: number; wins: number; losses: number; fighter: string; level: number; id: string }[]> {
     if (!this.online) return [];

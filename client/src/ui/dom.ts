@@ -1,4 +1,4 @@
-import { tierFor, xpForLevel, type CrateResult, getFighter } from '@nb/shared';
+import { tierFor, xpForLevel, type CrateResult, getFighter, getSpell, FIGHTERS, type Granted } from '@nb/shared';
 import { backend } from '../services/backend.ts';
 import { audio } from '../game/audio.ts';
 import { previewFighter } from '../game/art.ts';
@@ -12,7 +12,11 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<s
   for (const [k, v] of Object.entries(attrs)) {
     if (v === undefined || v === null || v === false) continue;
     if (k === 'class') el.className = v;
-    else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+    else if (k === 'style' && typeof v === 'object') {
+      for (const [sk, sv] of Object.entries(v)) {
+        if (sk.startsWith('--')) el.style.setProperty(sk, String(sv)); else (el.style as any)[sk] = sv;
+      }
+    }
     else if (k.startsWith('on') && typeof v === 'function') {
       const ev = k.slice(2).toLowerCase();
       el.addEventListener(ev, (e) => { if (ev === 'click') audio.ui(); v(e); });
@@ -48,11 +52,11 @@ export function show(make: () => Screen) {
 }
 
 // ---- small widgets ---------------------------------------------------------------------------
-export function icon(kind: 'coin' | 'gem' | 'xp') {
+export function icon(kind: 'coin' | 'gem' | 'xp' | 'rune') {
   return h('span', { class: `ico ico-${kind}` });
 }
 
-export function currency(kind: 'coin' | 'gem', amount: number) {
+export function currency(kind: 'coin' | 'gem' | 'rune', amount: number) {
   return h('span', { class: 'cur' }, icon(kind), num(amount));
 }
 
@@ -62,6 +66,7 @@ export function topBar(opts: { back?: () => void; title?: string } = {}) {
   const tier = tierFor(p.rank.mmr);
   const coins = h('span', { class: 'cur' }, icon('coin'), num(p.coins));
   const gems = h('span', { class: 'cur' }, icon('gem'), num(p.gems));
+  const runes = h('span', { class: 'cur rune' }, icon('rune'), num(p.runes ?? 0));
   const bar = h('div', { class: opts.title ? 'topbar titled' : 'topbar' },
     opts.back ? h('button', { class: 'btn icon back', onclick: opts.back }, svg(isFa() ? 'chevron' : 'back', 20)) : null,
     opts.title ? h('h2', { class: 'title' }, opts.title) : h('div', { class: 'player-chip', onclick: () => import('./meta.ts').then((m) => show(m.profileScreen)) },
@@ -72,18 +77,20 @@ export function topBar(opts: { back?: () => void; title?: string } = {}) {
       ),
     ),
     h('div', { class: 'grow' }),
-    h('button', { class: 'wallet', onclick: () => import('./meta.ts').then((m) => show(() => m.shopScreen('gems'))) }, coins, gems, h('span', { class: 'plus' }, '+')),
+    h('button', { class: 'wallet', onclick: () => import('./meta.ts').then((m) => show(() => m.shopScreen('gems'))) }, coins, gems, runes, h('span', { class: 'plus' }, '+')),
   );
   const un = backend.onChange((np) => {
     coins.lastChild!.textContent = num(np.coins);
     gems.lastChild!.textContent = num(np.gems);
+    runes.lastChild!.textContent = num(np.runes ?? 0);
   });
   (bar as any)._cleanup = un;
   return bar;
 }
 
 /** Small "locked" helper: requirement text for a feature that isn't open yet. */
-export function lockText(req: { level?: number; matches?: number }) {
+export function lockText(req: { level?: number; matches?: number; map?: number }) {
+  if (req.map) return isFa() ? `نقشه ${num(req.map)}` : `Map ${num(req.map)}`;
   if (req.level) return `${t('level')} ${num(req.level)}`;
   return `${num(req.matches ?? 0)} ${t('matchesShort')}`;
 }
@@ -120,11 +127,14 @@ export function confirmBox(msg: string): Promise<boolean> {
 }
 
 /** Animated reveal for rewards (crate, pass, login…) */
-export function rewardReveal(title: string, items: { kind: 'coin' | 'gem' | 'fighter' | 'skin' | 'xp'; amount?: number; id?: string }[]) {
+export type RewardItem = { kind: 'coin' | 'gem' | 'fighter' | 'skin' | 'xp' | 'rune' | 'cards' | 'spell'; amount?: number; id?: string };
+export function rewardReveal(title: string, items: RewardItem[]) {
   audio.reward();
   const cards = items.map((it, i) => {
     let body: Child;
-    if (it.kind === 'coin' || it.kind === 'gem') body = [h('div', { class: `big-ico ico-${it.kind}` }), h('b', {}, `+${num(it.amount ?? 0)}`)];
+    if (it.kind === 'coin' || it.kind === 'gem' || it.kind === 'rune') body = [h('div', { class: `big-ico ico-${it.kind}` }), h('b', {}, `+${num(it.amount ?? 0)}`)];
+    else if (it.kind === 'cards') body = [h('div', { class: 'card-stack' }, fighterCanvas(it.id!, 0, 80)), h('b', {}, `+${num(it.amount ?? 0)} ${isFa() ? 'کارت' : 'cards'}`), h('small', {}, loc(getFighter(it.id!)))];
+    else if (it.kind === 'spell') { const sp = getSpell(it.id); body = [h('div', { class: 'big-ico spell-ico', style: { '--c': sp?.color ?? '#fff' } as any }, svg('sparkles', 44)), h('b', {}, sp ? (isFa() ? sp.nameFa : sp.name) : '?')]; }
     else if (it.kind === 'fighter') body = [fighterCanvas(it.id!, 0, 110), h('b', {}, loc(getFighter(it.id!)))];
     else if (it.kind === 'skin') {
       const f = getFighterBySkin(it.id!);
@@ -137,16 +147,35 @@ export function rewardReveal(title: string, items: { kind: 'coin' | 'gem' | 'fig
   return m;
 }
 
-export function crateToItems(c: CrateResult | null | undefined) {
+export function crateToItems(c: CrateResult | null | undefined): RewardItem[] {
   if (!c) return [];
-  if (c.kind === 'coins') return [{ kind: 'coin' as const, amount: c.amount }];
-  if (c.kind === 'gems') return [{ kind: 'gem' as const, amount: c.amount }];
+  if (c.kind === 'coins') return [{ kind: 'coin', amount: c.amount }];
+  if (c.kind === 'gems') return [{ kind: 'gem', amount: c.amount }];
+  if (c.kind === 'runes') return [{ kind: 'rune', amount: c.amount }];
+  if (c.kind === 'cards') return [{ kind: 'cards', amount: c.amount, id: c.id }];
   if (c.id) return [{ kind: c.kind, id: c.id }];
-  return [{ kind: 'coin' as const, amount: c.dupCoins }];
+  return [{ kind: 'coin', amount: c.dupCoins }];
+}
+
+/** Everything a generic reward granted, as reveal cards. */
+export function grantedToItems(g: Granted | null | undefined): RewardItem[] {
+  if (!g) return [];
+  const r = g.reward;
+  const out: RewardItem[] = [];
+  if (r.coins) out.push({ kind: 'coin', amount: r.coins });
+  if (r.gems) out.push({ kind: 'gem', amount: r.gems });
+  if (r.runes) out.push({ kind: 'rune', amount: r.runes });
+  for (const f of r.fighters ?? []) out.push({ kind: 'fighter', id: f });
+  for (const s of r.skins ?? []) out.push({ kind: 'skin', id: s });
+  for (const s of r.spells ?? []) out.push({ kind: 'spell', id: s });
+  for (const [f, n] of Object.entries(g.cards)) out.push({ kind: 'cards', id: f, amount: n });
+  for (const c of g.crates) out.push(...crateToItems(c));
+  if (r.xp) out.push({ kind: 'xp', amount: r.xp });
+  return out;
 }
 
 export function getFighterBySkin(skinId: string): { f: string; idx: number } | null {
-  for (const id of ['blaze', 'boulder', 'zephyr', 'volt', 'kira', 'pip']) {
+  for (const id of FIGHTERS.map((f) => f.id)) {
     const idx = getFighter(id).skins.findIndex((s) => s.id === skinId);
     if (idx >= 0) return { f: id, idx };
   }

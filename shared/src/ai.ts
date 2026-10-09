@@ -39,6 +39,19 @@ export function botInput(state: GameState, slot: number, brain: BotBrain): numbe
 
   if (me.action === 'spawn') return r() < 0.05 ? Btn.DOWN : 0;
 
+  // magic: cast once the meter is full and a foe is near (smarter bots wait for a better moment)
+  const mods = state.cfg.players[slot]?.mods;
+  if (mods?.spell && me.mana >= 100 && me.hitlag <= 0 && me.action !== 'hitstun' && me.action !== 'ledge' && !offstage(me, stage)) {
+    const foe = state.fighters.find((o) => o !== me && o.stocks > 0 && o.action !== 'dead' && (!state.cfg.teams || o.team !== me.team));
+    const near = foe && Math.abs(foe.x - me.x) < (mods.spell === 'thunder' || mods.spell === 'shade' ? 600 : 160) && Math.abs(foe.y - me.y) < 140;
+    const wantHeal = mods.spell === 'heal' && me.damage > 60;
+    const wantAegis = mods.spell === 'aegis' && me.damage > 80;
+    if ((near || wantHeal || wantAegis) && r() < 0.1 + lvl * 0.05) {
+      if (foe) me.facing = foe.x >= me.x ? 1 : -1;
+      return hold(Btn.MAGIC | (foe && foe.x > me.x ? Btn.RIGHT : Btn.LEFT), 2);
+    }
+  }
+
   // ---- recovery ----
   if (offstage(me, stage)) {
     const towards = me.x < 0 ? Btn.RIGHT : Btn.LEFT;

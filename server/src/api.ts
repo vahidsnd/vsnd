@@ -2,16 +2,17 @@ import type http from 'node:http';
 import {
   applyMatch, buyItem, claimAchievement, completeTutorial, claimFreeCrate, claimLogin, claimPass, claimQuest, doubleLastReward, getFighter,
   grantIap, IAP_PRODUCTS, MAX_REWARDED_ADS_PER_DAY, rerollQuest, dayKey, type MatchSummary,
+  claimLeague, claimMail, claimMilestone, claimStarChest, clearMapNode, equipSpell, learnSpell, spinWheel, upgradeSpell, upgradeStat,
+  collectDonations, MAP_SIZE,
 } from '@nb/shared';
+import { HttpError, need, socialRoutes } from './social.ts';
+import { socialCtx } from './db.ts';
 import { config } from './config.ts';
 import { createGuest, isPurchaseTokenUsed, leaderboard, markDirty, markPurchaseToken, sanitizeName, userByToken, type UserRec } from './db.ts';
 import { verifyGooglePlay } from './billing/googleplay.ts';
 import { verifyMyket } from './billing/myket.ts';
 
 type Handler = (body: any, user: UserRec | null) => Promise<unknown> | unknown;
-
-class HttpError extends Error { constructor(public code: number, msg: string) { super(msg); } }
-const need = (u: UserRec | null) => { if (!u) throw new HttpError(401, 'auth'); return u; };
 
 const routes: Record<string, Handler> = {
   'POST /api/guest': (b) => {
@@ -108,26 +109,45 @@ const routes: Record<string, Handler> = {
     return { ok: true, profile: rec.profile };
   },
   'POST /api/match/offline': (b, u) => {
-    // CPU matches played offline; rewards are already reduced by mode multiplier and capped per day
+    // CPU / world-map matches played offline; rewards are reduced by the mode multiplier and capped per day
     const rec = need(u);
     const p = rec.profile;
     const s = b.summary as MatchSummary;
-    if (!s || s.mode !== 'cpu') throw new HttpError(400, 'bad-summary');
+    if (!s || (s.mode !== 'cpu' && s.mode !== 'map')) throw new HttpError(400, 'bad-summary');
     const today = dayKey(Date.now());
     if (!rec.cpu || rec.cpu.day !== today) rec.cpu = { day: today, count: 0 };
-    if (rec.cpu.count >= 40) return { reward: null, profile: p };
-    rec.cpu.count++;
     const clean: MatchSummary = {
-      matchId: String(s.matchId).slice(0, 40), mode: 'cpu', won: !!s.won,
+      matchId: String(s.matchId).slice(0, 40), mode: s.mode, won: !!s.won,
       placement: clamp(s.placement, 1, 4), players: clamp(s.players, 2, 4),
       kos: clamp(s.kos, 0, 12), falls: clamp(s.falls, 0, 12), dmg: clamp(s.dmg, 0, 2000),
       smashKOs: clamp(s.smashKOs, 0, 12), maxCombo: clamp(s.maxCombo, 0, 20),
       fighter: String(s.fighter), durationSec: clamp(s.durationSec, 0, 900),
     };
+    // map progress is never capped (it's finite); only the per-match coins are
+    const map = s.mode === 'map' && Number.isInteger(b.node) && b.node >= 0 && b.node < MAP_SIZE
+      ? clearMapNode(p, b.node, clean.won, clean.falls) : null;
+    if (rec.cpu.count >= 40) { markDirty(); return { reward: null, map, profile: p }; }
+    rec.cpu.count++;
     const reward = applyMatch(p, clean);
     markDirty();
-    return { reward, profile: p };
+    return { reward, map, profile: p };
   },
+  'POST /api/map/chest': (b, u) => { const p = need(u).profile; const g = claimStarChest(p, Number(b.idx)); markDirty(); return { granted: g, profile: p }; },
+  'POST /api/milestone/claim': (b, u) => { const p = need(u).profile; const g = claimMilestone(p, Number(b.idx)); markDirty(); return { granted: g, profile: p }; },
+  'POST /api/fighter/upgrade': (b, u) => { const p = need(u).profile; const ok = upgradeStat(p, String(b.fighter), b.stat); markDirty(); return { ok, profile: p }; },
+  'POST /api/spell/learn': (b, u) => { const p = need(u).profile; const ok = learnSpell(p, String(b.id)); markDirty(); return { ok, profile: p }; },
+  'POST /api/spell/upgrade': (b, u) => { const p = need(u).profile; const ok = upgradeSpell(p, String(b.id)); markDirty(); return { ok, profile: p }; },
+  'POST /api/spell/equip': (b, u) => { const p = need(u).profile; const ok = equipSpell(p, String(b.fighter), b.id ? String(b.id) : null); markDirty(); return { ok, profile: p }; },
+  'POST /api/league/claim': (b, u) => { const p = need(u).profile; const g = claimLeague(p, String(b.key)); markDirty(); return { granted: g, profile: p }; },
+  'POST /api/mail/claim': (b, u) => { const p = need(u).profile; const g = claimMail(p, String(b.id)); markDirty(); return { granted: g, profile: p }; },
+  'POST /api/wheel/spin': (b, u) => {
+    const rec = need(u);
+    if (b.viaAd && !takeAd(rec)) throw new HttpError(429, 'ad-limit');
+    const r = spinWheel(rec.profile, dayKey(Date.now()), !!b.viaAd);
+    markDirty();
+    return { result: r, profile: rec.profile };
+  },
+  'POST /api/clan/cards/collect': (_b, u) => { const p = need(u).profile; const n = collectDonations(socialCtx(), p); markDirty(); return { n, profile: p }; },
   'POST /api/ach/claim': (b, u) => {
     const p = need(u).profile;
     const a = claimAchievement(p, String(b.id));
@@ -142,6 +162,7 @@ const routes: Record<string, Handler> = {
   },
   'GET /api/leaderboard': () => ({ top: leaderboard(100) }),
   'GET /api/health': () => ({ ok: true }),
+  ...socialRoutes,
 };
 
 function clamp(v: unknown, lo: number, hi: number) {
@@ -161,12 +182,13 @@ function takeAd(rec: UserRec): boolean {
 export async function handleApi(req: http.IncomingMessage, res: http.ServerResponse): Promise<boolean> {
   const url = new URL(req.url ?? '/', 'http://x');
   res.setHeader('access-control-allow-origin', config.corsOrigin);
-  res.setHeader('access-control-allow-headers', 'content-type, authorization');
+  res.setHeader('access-control-allow-headers', 'content-type, authorization, x-admin-key');
   res.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS');
   if (req.method === 'OPTIONS') { res.writeHead(204).end(); return true; }
   const handler = routes[`${req.method} ${url.pathname}`];
   if (!handler) return false;
   try {
+    if (url.pathname.startsWith('/api/admin/') && (!config.adminKey || req.headers['x-admin-key'] !== config.adminKey)) throw new HttpError(403, 'admin');
     const body = req.method === 'POST' ? await readJson(req) : {};
     const token = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
     const out = await handler(body, userByToken(token));

@@ -1,8 +1,9 @@
 import { Btn, dirX, dirY } from './input.ts';
 import { getFighter, type FighterDef } from './fighters.ts';
 import { getStage, platformPos, type StageDef } from './stages.ts';
+import { aegisFrames, getSpell, healAmount, MANA, spellProjectile } from './spells.ts';
 import type {
-  FighterState, GameEvent, GameState, Hitbox, MatchConfig, MoveDef, MoveId, ProjectileState,
+  FighterMods, FighterState, GameEvent, GameState, Hitbox, MatchConfig, MoveDef, MoveId, ProjectileState,
 } from './types.ts';
 
 // ---- tuning -----------------------------------------------------------------
@@ -48,7 +49,13 @@ function newFighter(slot: number, charId: string, skin: number, team: number, na
     grabPartner: -1, respawn: 0, inp: 0, prev: 0, tapX: 0, tapY: 0, tapT: 0, lastHitBy: -1, lastHitMove: null,
     combo: 0, lag: 0, grabT: 0, ledgeGrabs: 0, usedSide: false,
     stats: { kos: 0, falls: 0, dmgDealt: 0, smashKOs: 0, maxCombo: 0 },
+    mana: 0,
   };
+}
+
+const NEUTRAL: FighterMods = { atk: 1, def: 1, hp: 1 };
+function modsOf(state: GameState, slot: number): FighterMods {
+  return state.cfg.players[slot]?.mods ?? NEUTRAL;
 }
 
 export function cloneState(s: GameState): GameState {
@@ -70,6 +77,7 @@ export function step(state: GameState, inputs: ArrayLike<number>): void {
     trackTaps(f);
   }
   for (const f of state.fighters) updateFighter(state, f, stage, plats, prevPlats);
+  if (live) for (const f of state.fighters) updateMagic(state, f);
   pushApart(state, stage);
   updateProjectiles(state, stage, plats);
   resolveHits(state);
@@ -736,7 +744,7 @@ function explode(state: GameState, p: ProjectileState) {
     const st = getFighter(v.charId).stats;
     if (circleRect(p.x, p.y, d.explode!, v.x - st.w / 2, v.y - st.h, st.w, st.h)) {
       const dirSign = v.x >= p.x ? 1 : -1;
-      hitFighter(state, p.owner, v, { s: 0, e: 0, x: 0, y: 0, r: d.explode!, dmg: d.dmg, ang: d.ang, bkb: d.bkb, kbg: d.kbg }, dirSign, v.x, v.y - st.h / 2, null, false);
+      hitFighter(state, p.owner, v, { s: 0, e: 0, x: 0, y: 0, r: d.explode!, dmg: d.dmg, ang: d.ang, bkb: d.bkb, kbg: d.kbg, spell: p.kind.startsWith('sp_') }, dirSign, v.x, v.y - st.h / 2, null, false);
     }
   }
 }
@@ -797,7 +805,7 @@ function resolveHits(state: GameState) {
       p.hit.push(v.slot);
       if (d.explode) { explode(state, p); p.life = 0; break; }
       const sign = d.wind ? (p.vx >= 0 ? 1 : -1) : (p.vx === 0 ? (v.x >= p.x ? 1 : -1) : Math.sign(p.vx));
-      hitFighter(state, p.owner, v, { s: 0, e: 0, x: 0, y: 0, r: d.r, dmg: d.dmg, ang: d.ang, bkb: d.bkb, kbg: d.kbg, wind: d.wind }, sign, p.x, p.y, null, false);
+      hitFighter(state, p.owner, v, { s: 0, e: 0, x: 0, y: 0, r: d.r, dmg: d.dmg, ang: d.ang, bkb: d.bkb, kbg: d.kbg, wind: d.wind, spell: p.kind.startsWith('sp_') }, sign, p.x, p.y, null, false);
       if (!d.pierce) { p.life = 0; break; }
     }
   }
@@ -810,9 +818,11 @@ function chargeScaled(h: Hitbox, a: FighterState, m: MoveDef): Hitbox {
 }
 
 /** Handles shield, counter and armour before applying a real hit. */
-function hitFighter(state: GameState, atk: number, v: FighterState, h: Hitbox, dirSign: number, x: number, y: number, move: MoveId | null, melee: boolean) {
+function hitFighter(state: GameState, atk: number, v: FighterState, h0: Hitbox, dirSign: number, x: number, y: number, move: MoveId | null, melee: boolean) {
   const a = state.fighters[atk];
   const vdef = getFighter(v.charId);
+  const mul = (a && a !== v ? modsOf(state, atk).atk : 1) * modsOf(state, v.slot).def;
+  const h = mul === 1 || !h0.dmg ? h0 : { ...h0, dmg: Math.round(h0.dmg * mul * 10) / 10 };
   // counter
   if (v.action === 'attack' && v.move) {
     const vm = vdef.moves[v.move];
@@ -871,7 +881,9 @@ function applyHit(state: GameState, atk: number, v: FighterState, h: Hitbox, dir
     return;
   }
   v.damage = Math.min(999, Math.round((v.damage + h.dmg) * 10) / 10);
-  const kb = knockback(v.damage, h.dmg, vdef.stats.weight, h.bkb, h.kbg);
+  const kb = knockback(v.damage, h.dmg, vdef.stats.weight * modsOf(state, v.slot).hp, h.bkb, h.kbg);
+  gainMana(state, v, h.dmg * MANA.perTaken);
+  if (a && a !== v && !h.spell) gainMana(state, a, h.dmg * MANA.perDealt);
   let ang = (h.ang * Math.PI) / 180;
   let lx = Math.cos(ang) * dirSign, ly = -Math.sin(ang);
   // directional influence
@@ -973,4 +985,55 @@ export function placements(state: GameState): number[] {
   const out: number[] = [];
   order.forEach((f, i) => { out[f.slot] = i + 1; });
   return out;
+}
+
+// ---- magic --------------------------------------------------------------------------------
+function gainMana(state: GameState, f: FighterState, n: number) {
+  if (!modsOf(state, f.slot).spell) return;
+  f.mana = Math.min(100, Math.round((f.mana + n) * 100) / 100);
+}
+
+const NO_CAST = new Set(['hitstun', 'dead', 'spawn', 'grabbed', 'grabbing', 'ledge', 'ledgeclimb', 'shieldbreak', 'helpless']);
+
+function updateMagic(state: GameState, f: FighterState) {
+  const mods = modsOf(state, f.slot);
+  const spell = getSpell(mods.spell);
+  if (!spell || f.stocks <= 0 || f.action === 'dead') return;
+  if (f.hitlag <= 0) gainMana(state, f, MANA.perFrame);
+  if (!pressed(f, Btn.MAGIC) || f.mana < 100 || f.hitlag > 0 || NO_CAST.has(f.action)) return;
+  f.mana = 0;
+  const lv = mods.spellLv ?? 1;
+  state.events.push({ t: 'spell', slot: f.slot, id: spell.id, x: f.x, y: f.y - 36 });
+  if (spell.id === 'heal') { f.damage = Math.max(0, Math.round((f.damage - healAmount(lv)) * 10) / 10); return; }
+  if (spell.id === 'aegis') { f.invuln = Math.max(f.invuln, aegisFrames(lv)); return; }
+  const pd = spellProjectile(spell.id, lv);
+  if (!pd) return;
+  const foe = nearestFoe(state, f);
+  let x = f.x + (pd.ox ?? 0) * f.facing, y = f.y + (pd.oy ?? 0), facing = f.facing;
+  if (spell.id === 'thunder') {
+    const tx = foe ? foe.x : f.x + 160 * f.facing;
+    const ty = foe ? foe.y : f.y;
+    x = tx; y = ty - 420;
+  } else if (spell.id === 'shade' && foe) {
+    const side = (foe.x >= f.x ? 1 : -1);
+    f.x = foe.x + side * 46; f.y = foe.y - 2;
+    f.facing = (-side) as 1 | -1; facing = f.facing;
+    f.vx = f.vy = f.kx = f.ky = 0;
+    x = foe.x; y = foe.y - 36;
+  }
+  state.projectiles.push({
+    id: state.nextId++, owner: f.slot, team: f.team, kind: pd.kind,
+    x, y, vx: pd.vx * facing, vy: pd.vy, life: pd.life, def: pd, hit: [], facing,
+  });
+}
+
+function nearestFoe(state: GameState, f: FighterState): FighterState | null {
+  let best: FighterState | null = null, bd = Infinity;
+  for (const o of state.fighters) {
+    if (o === f || o.stocks <= 0 || o.action === 'dead') continue;
+    if (state.cfg.teams && o.team === f.team) continue;
+    const d = Math.abs(o.x - f.x) + Math.abs(o.y - f.y);
+    if (d < bd) { bd = d; best = o; }
+  }
+  return best;
 }

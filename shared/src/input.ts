@@ -10,6 +10,7 @@ export const Btn = {
   SHIELD: 128,
   GRAB: 256,
   STRONG: 512, // "smash" modifier (mobile button / C-stick substitute)
+  MAGIC: 1024, // cast the equipped spell when the magic meter is full
 } as const;
 
 export type InputBits = number;

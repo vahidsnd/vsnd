@@ -1,6 +1,6 @@
 # Neon Brawl — نئون براول
 
-Online 2D platform fighter (Smash-style, **landscape**) for **Myket** and **Google Play**, with ranked matchmaking, a full economy, AdMob/Tapsell ads and in-app purchases.
+Online 2D platform fighter (Smash-style, **landscape**) for **Myket** and **Google Play**, with 20 fighters, 20 arenas, an offline world-map campaign that unlocks online play, leagues (Bronze → Legendary), spells & runes, fighter cards/upgrades, clans (15 members, roles, gem upgrades, alliances, clan wars), global/clan/alliance/private chat with moderation ("Game Police"), promo codes, a full economy, AdMob/Tapsell ads and in-app purchases.
 Full game design document (Persian): **[docs/GDD.md](docs/GDD.md)** · Handoff / release checklist: **[docs/HANDOFF.md](docs/HANDOFF.md)**.
 
 ```
@@ -21,13 +21,16 @@ npm run build && npm start   # http://localhost:8787
 
 Offline: if the server is unreachable the client falls back to a local profile (VS CPU, training, shop with the same rules).
 
-Tests: `npm test` (sim/economy unit tests + server end-to-end: matchmaking, forfeit, rooms, IAP). Typecheck: `npm run typecheck`.
+Tests: `npm test` (sim/economy/progression unit tests + server end-to-end: matchmaking, forfeit, rooms, IAP, clans/chat/police/promo). Typecheck: `npm run typecheck`.
 
 ## Server configuration (env)
 
 | var | meaning |
 |---|---|
 | `PORT` | default 8787 |
+| `ADMIN_KEY` | enables `/api/admin/staff` and `/api/admin/promo` (header `x-admin-key`) to create the first admin and promo codes |
+| `WAR_BOT_AFTER_MS` | clans searching for a war this long get a computer rival (default 300000) |
+| `UNLOCK_ALL` | `1` skips world-map gating (testing only) |
 | `DATA_DIR` | JSON database directory (default `server/data`) |
 | `NODE_ENV=production` | disables sandbox purchases |
 | `GP_PACKAGE`, `GP_SERVICE_ACCOUNT` | Google Play package + service-account JSON (Android Publisher API) |

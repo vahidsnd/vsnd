@@ -21,6 +21,7 @@ export interface Hitbox {
   grab?: boolean;
   wind?: boolean;              // pushes without damage/hitstun
   multi?: number;              // rehit every N frames (multi-hit moves)
+  spell?: boolean;             // from a spell: doesn't refill the attacker's magic meter
 }
 
 export interface ProjectileDef {
@@ -113,6 +114,7 @@ export interface FighterState {
   ledgeGrabs: number;
   usedSide: boolean;
   stats: { kos: number; falls: number; dmgDealt: number; smashKOs: number; maxCombo: number };
+  mana: number;                // 0..100 magic meter (only fills when a spell is equipped)
 }
 
 export interface ProjectileState {
@@ -139,6 +141,7 @@ export type GameEvent =
   | { t: 'shieldbreak'; slot: number }
   | { t: 'counter'; slot: number }
   | { t: 'spawn'; slot: number }
+  | { t: 'spell'; slot: number; id: string; x: number; y: number }
   | { t: 'end'; winnerTeam: number };
 
 export interface MatchConfig {
@@ -146,7 +149,16 @@ export interface MatchConfig {
   stocks: number;
   timeLimit: number;           // seconds, 0 = none
   teams: boolean;
-  players: { charId: string; skin: number; team: number; name: string; bot?: boolean }[];
+  players: { charId: string; skin: number; team: number; name: string; bot?: boolean; mods?: FighterMods }[];
+}
+
+/** Per-player modifiers from card upgrades and the equipped spell. 1 = neutral. */
+export interface FighterMods {
+  atk: number;      // damage dealt multiplier (>= 1)
+  def: number;      // damage taken multiplier (<= 1)
+  hp: number;       // weight multiplier (knockback resistance, >= 1)
+  spell?: string;
+  spellLv?: number;
 }
 
 export interface GameState {
