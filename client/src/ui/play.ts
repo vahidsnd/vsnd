@@ -255,7 +255,7 @@ export function startMapNode(i: number) {
         { mode: 'cpu', replay: () => startMapNode(i), online: false, reward: res.reward ?? undefined, map: res.map ? { node: i, clear: res.map } : undefined }));
     },
   }));
-  if (i === 0) introOnce('map-fight', [{ title: { fa: 'اولین نبرد نقشه', en: 'First map battle' }, text: { fa: 'حریف را از صحنه بیرون بینداز. بدون سقوط ببری ۳ ستاره می‌گیری!', en: 'Knock your foe off the stage. Win without falling for 3 stars!' } }]);
+  if (i === 0) introOnce('map-fight', [{ title: { fa: 'اولین نبرد نقشه', en: 'First map battle' }, text: { fa: 'حریف را از صحنه بیرون بینداز. بدون سقوط ببری ۳ ستاره می‌گیری!', en: 'Knock your foe off the stage. Win without falling for 3 stars!' } }], session);
 }
 
 export function startTraining() {
@@ -357,7 +357,7 @@ function gameScreen(session: Session, o: GameOpts): Screen {
   const magicBtn = touch?.el.querySelector('.tb-magic') as HTMLElement | null;
   if (touch && mySpell) { touch.el.classList.add('has-magic'); magicBtn?.style.setProperty('border-color', mySpell.color); }
   let magicReady = false;
-  if (mySpell && !o.online && !o.tutorial) setTimeout(() => introOnce('magic-fight', [{ target: touch ? '.tb-magic' : undefined, title: { fa: 'جادو آماده است', en: 'Your spell' }, text: { fa: `نوار بنفش زیر درصد آسیبت با ضربه زدن پر می‌شود. وقتی پر شد ${touch ? 'دکمه جادو' : 'کلید E'} را بزن تا «${mySpell.nameFa}» اجرا شود.`, en: `The bar under your damage fills as you fight. When it's full, press ${touch ? 'the magic button' : 'E'} to cast ${mySpell.name}.` } }]), 3200);
+  if (mySpell && !o.online && !o.tutorial) setTimeout(() => introOnce('magic-fight', [{ target: touch ? '.tb-magic' : undefined, title: { fa: 'جادو آماده است', en: 'Your spell' }, text: { fa: `نوار بنفش زیر درصد آسیبت با ضربه زدن پر می‌شود. وقتی پر شد ${touch ? 'دکمه جادو' : 'کلید E'} را بزن تا «${mySpell.nameFa}» اجرا شود.`, en: `The bar under your damage fills as you fight. When it's full, press ${touch ? 'the magic button' : 'E'} to cast ${mySpell.name}.` } }], session), 3200);
   // touch augments player-1 input
   if (touch) {
     const s = session as any;

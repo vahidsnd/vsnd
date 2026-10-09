@@ -44,6 +44,7 @@ let onScreenChange: (s: Screen) => void = () => {};
 export function initDom(r: HTMLElement, onChange: (s: Screen) => void) { root = r; onScreenChange = onChange; }
 
 export function show(make: () => Screen) {
+  document.querySelectorAll('.chat-wrap').forEach((e) => e.remove());
   if (current) { current.destroy?.(); cleanup(current.el); current.el.remove(); }
   current = make();
   current.el.classList.add('screen');

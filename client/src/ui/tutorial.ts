@@ -74,10 +74,13 @@ export function coach(steps: CoachStep[], onDone?: () => void) {
 }
 
 /** Runs a screen's intro the first time it is opened. */
-export function introOnce(id: string, steps: CoachStep[]) {
+export function introOnce(id: string, steps: CoachStep[], pause?: { paused: boolean }) {
   const seen = store.get<string[]>('intros', []);
   if (seen.includes(id)) return;
-  setTimeout(() => coach(steps, () => { store.set('intros', [...store.get<string[]>('intros', []), id]); }), 450);
+  setTimeout(() => {
+    if (pause) pause.paused = true;
+    coach(steps, () => { if (pause) pause.paused = false; store.set('intros', [...store.get<string[]>('intros', []), id]); });
+  }, 450);
 }
 export function resetIntros() { store.set('intros', []); }
 

@@ -98,7 +98,7 @@ class ServerSocial implements SocialService {
   history(ch: string) { void net.connect(); return this.api('POST', '/api/chat/history', { ch }); }
   async post(ch: string, text: string) { return (await this.api('POST', '/api/chat/post', { ch, text })).msg; }
   async dms() { return (await this.api('GET', '/api/chat/dms')).threads; }
-  async report(inp: { target: string; msgId?: string; reason: string }) { await this.api('POST', '/api/report', inp); }
+  async report(inp: { target: string; targetName?: string; msgId?: string; reason: string }) { await this.api('POST', '/api/report', inp); }
   async police() { const v = await this.api('GET', '/api/police'); this.role = v.role; return v; }
   async act(inp: object) { await this.api('POST', '/api/police/act', inp); }
   async staff(target: string, role: StaffRole | null) { await this.api('POST', '/api/police/staff', { target, role }); }
@@ -181,8 +181,8 @@ class DemoSocial implements SocialService {
     a.allies.push(b.id); b.allies.push(a.id);
     for (let i = 0; i < 8; i++) this.botSay('global', i);
     // sample reports so the police panel has something to review
-    db.reports.push({ id: 'p_demo1', t: now - 600_000, by: 'bot1_2', byName: 'Mina', target: 'bot3_4', targetName: 'Babak', text: '***** noob', ch: 'global', reason: 'abuse', status: 'open' });
-    db.reports.push({ id: 'p_demo2', t: now - 300_000, by: 'bot2_1', byName: 'Reza', target: 'bot5_6', targetName: 'Leo', text: 'buy gems cheap [link]', ch: 'global', reason: 'spam', status: 'open' });
+    db.reports.push({ id: 'p_demo1', t: now - 600_000, by: 'bot1_2', byName: db.clans.demo1.members[2].name, target: 'bot3_4', targetName: db.clans.demo3.members[4].name, text: '***** noob', ch: 'global', reason: 'abuse', status: 'open' });
+    db.reports.push({ id: 'p_demo2', t: now - 300_000, by: 'bot2_1', byName: db.clans.demo2.members[1].name, target: 'bot5_6', targetName: db.clans.demo5.members[6].name, text: 'buy gems cheap [link]', ch: 'global', reason: 'spam', status: 'open' });
     // promo codes for testing (admins can create more from the police panel)
     const promo = (code: string, reward: object, note: string) => { db.promos[code] = { code, reward, maxUses: 100000, uses: 0, expires: 0, minLevel: 0, created: now, by: 'console', note }; };
     promo('NEON2026', { gems: 200, runes: 150, coins: 3000 }, 'launch gift');
@@ -216,9 +216,10 @@ class DemoSocial implements SocialService {
       // bot clans answer alliance proposals
       for (const id of [...mine.allyOut]) {
         const o = db.clans[id];
-        if (o?.bot && Math.random() < 0.5 && mine.allies.length < 3 && o.allies.length < 3) {
-          mine.allyOut = mine.allyOut.filter((x) => x !== id); o.allyIn = o.allyIn.filter((x) => x !== mine.id);
-          mine.allies.push(o.id); o.allies.push(mine.id);
+        if (o?.bot && Math.random() < 0.7) {
+          // the bot clan's leader answers through the real engine rules
+          const leader = { ...this.me, id: o.members[0].id } as Profile;
+          try { allyRespond(ctx, leader, mine.id, true); } catch { o.allyIn = o.allyIn.filter((x) => x !== mine.id); mine.allyOut = mine.allyOut.filter((x) => x !== id); }
           this.changeL.forEach((f) => f('ally'));
         }
       }

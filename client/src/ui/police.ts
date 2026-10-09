@@ -119,6 +119,7 @@ export function policeScreen(): Screen {
   let v: View | null = null;
   let alive = true;
   let lookupId = '';
+  let formOpen = false;
   const tabsEl = h('div', { class: 'tabs police-tabs' });
   const scroll = h('div', { class: 'scroll police-scroll' }, h('div', { class: 'muted center' }, '…'));
   const el = h('div', { class: 'page police' }, topBar({ back: goHome, title: tr('title') }), tabsEl, scroll);
@@ -148,9 +149,9 @@ export function policeScreen(): Screen {
     const b = (cls: string, label: Child, fn: () => void) => h('button', { class: `btn small ${cls}`, onclick: fn }, label);
     return h('div', { class: 'police-acts' },
       b('', [svg('flag', 13), tr('warn')], () => act({ action: 'warn', ...base() })),
-      b('', [svg('chat', 13), `${tr('mute')} ${digits('1h')}`], () => act({ action: 'mute', minutes: 60, ...base() })),
-      b('', digits('24h'), () => act({ action: 'mute', minutes: 60 * 24, ...base() })),
-      b('', digits(isFa() ? '۷ روز' : '7d'), () => act({ action: 'mute', minutes: 60 * 24 * 7, ...base() })),
+      b('', [svg('chat', 13), `${tr('mute')} ${isFa() ? '۱ ساعت' : '1h'}`], () => act({ action: 'mute', minutes: 60, ...base() })),
+      b('', isFa() ? '۲۴ ساعت' : '24h', () => act({ action: 'mute', minutes: 60 * 24, ...base() })),
+      b('', isFa() ? '۷ روز' : '7d', () => act({ action: 'mute', minutes: 60 * 24 * 7, ...base() })),
       b('primary', [svg('lock', 13), tr('ban')], () => act({ action: 'ban', ...base() })),
       extra.msgId ? b('gold', [svg('close', 13), tr('delete')], () => act({ action: 'delete', target, msgId: extra.msgId })) : null,
       extra.lifts ? [b('ghost', tr('unmute'), () => act({ action: 'unmute', ...base() })), b('ghost', tr('unban'), () => act({ action: 'unban', ...base() }))] : null,
@@ -298,11 +299,11 @@ export function policeScreen(): Screen {
         code: code.value, reward, maxUses: Math.max(1, Number(maxUses.value) || 1000), days: Math.max(0, Number(days.value) || 0) || undefined,
         minLevel: Math.max(0, Number(minLevel.value) || 0), note: note.value.trim() || undefined,
       }).then(() => true), `${tr('promoMade')}: ${code.value}`);
-      if (ok) await load();
+      if (ok) { formOpen = false; await load(); }
     };
     const fld = (label: string, c: Child) => h('label', { class: 'police-fld' }, h('span', {}, label), c);
-    return h('div', { class: 'box police-form' },
-      h('h3', {}, svg('ticket', 15), ' ', tr('newPromo')),
+    return h('details', { class: 'box police-form', open: formOpen, ontoggle: (e: Event) => { formOpen = (e.target as HTMLDetailsElement).open; } },
+      h('summary', { class: 'police-summary' }, svg('ticket', 15), h('b', {}, tr('newPromo')), svg('chevron', 15, 'police-chev')),
       h('div', { class: 'police-grid' },
         fld(tr('code'), code), fld(tr('maxUses'), maxUses), fld(tr('days'), days), fld(tr('minLevel'), minLevel)),
       h('small', { class: 'muted' }, tr('reward')),

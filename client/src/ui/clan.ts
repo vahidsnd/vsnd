@@ -683,7 +683,7 @@ export function clanScreen(): Screen {
       out.push(h('div', { class: 'box clan-war' },
         h('div', { class: 'clan-score' },
           h('div', { class: 'clan-side' }, clanBadge(v.badge, 42), h('b', {}, v.name), h('small', { class: 'clan-tagtxt', dir: 'ltr' }, `[${v.tag}]`)),
-          h('div', { class: 'clan-pts', dir: 'ltr' }, h('b', { class: lead ? 'win' : '' }, num(w.our)), h('span', {}, ':'), h('b', { class: !lead ? 'lose' : '' }, num(w.their))),
+          h('div', { class: 'clan-pts' }, h('b', { class: lead ? 'win' : '' }, num(w.our)), h('span', {}, ':'), h('b', { class: !lead ? 'lose' : '' }, num(w.their))),
           h('div', { class: 'clan-side' }, clanBadge(w.vsBadge, 42), h('b', {}, w.vsName), h('small', { class: 'clan-tagtxt', dir: 'ltr' }, `[${w.vsTag}]`)),
         ),
         h('div', { class: 'clan-timer' }, svg('history', 14), tr('timeLeft'), ' ', h('b', { 'data-end': w.end }, duration(w.end - Date.now()))),

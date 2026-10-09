@@ -266,7 +266,9 @@ export function clanSetRole(ctx: SocialCtx, p: Profile, userId: string, role: Cl
   if (m.role === 'co' && (ROLE_RANK[t.role] >= ROLE_RANK.co || ROLE_RANK[role] >= ROLE_RANK.co)) fail('perm');
   if (role === 'leader') {
     if (m.role !== 'leader') fail('perm');
-    m.role = 'co';
+    // the old leader steps down to deputy if there is room, otherwise to officer
+    const deputies = c.members.filter((x) => x.role === 'co' && x !== t).length;
+    m.role = deputies < MAX_DEPUTIES ? 'co' : 'elder';
   }
   if (role === 'co' && t.role !== 'co' && c.members.filter((x) => x.role === 'co').length >= MAX_DEPUTIES) fail('limit');
   t.role = role;
