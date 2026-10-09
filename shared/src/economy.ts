@@ -1,5 +1,6 @@
 import { FIGHTERS, getFighter } from './fighters.ts';
 import { clanBonus, migrateProgress, trackLeague, leagueSeasonRollover, MAP_SIZE, type Mail } from './progress.ts';
+import { grantLiveopsIap, liveopsAfterMatch } from './liveops.ts';
 
 // =====================================================================================
 //  Economy design
@@ -66,6 +67,12 @@ export interface Profile {
   trophies: import('./league.ts').Trophy[];
   /** test builds only: unlock every feature locally */
   dev?: boolean;
+  // ---- live ops (see liveops.ts / cosmetics.ts) ----
+  deals?: import('./liveops.ts').DealsState;
+  smart?: import('./liveops.ts').SmartState;
+  vip?: import('./liveops.ts').VipState;
+  cos?: import('./cosmetics.ts').CosState;
+  mastery?: Record<string, import('./cosmetics.ts').MasteryState>;
 }
 
 export interface ClanRef { id: string; name: string; tag: string; level: number; role: 'leader' | 'co' | 'elder' | 'member'; badge: number }
@@ -102,6 +109,11 @@ export const IAP_PRODUCTS: IapProduct[] = [
     id: 'all_fighters', name: 'Legends Bundle', nameFa: 'بسته اسطوره‌ها', fighters: FIGHTERS.map((f) => f.id), gems: 500,
     consumable: false, badge: 'All fighters', badgeFa: 'همه مبارزها', price: { googleplay: '$14.99', myket: '۴۴۹٬۰۰۰ تومان', web: '$14.99' },
   },
+  // live ops (granted by grantLiveopsIap in liveops.ts)
+  { id: 'vip_month', name: 'VIP – 30 days', nameFa: 'VIP – ۳۰ روز', consumable: true, badge: 'VIP', badgeFa: 'VIP', price: { googleplay: '$2.99', myket: '۸۹٬۰۰۰ تومان', web: '$2.99' } },
+  { id: 'comeback_pack', name: 'Comeback Pack', nameFa: 'بسته بازگشت', consumable: true, oneTime: true, price: { googleplay: '$0.99', myket: '۲۹٬۰۰۰ تومان', web: '$0.99' } },
+  { id: 'rune_pack', name: 'Rune Pack', nameFa: 'بسته رون', consumable: true, oneTime: true, price: { googleplay: '$1.99', myket: '۵۹٬۰۰۰ تومان', web: '$1.99' } },
+  { id: 'veteran_pack', name: 'Veteran Pack', nameFa: 'بسته کهنه‌کار', consumable: true, oneTime: true, price: { googleplay: '$4.99', myket: '۱۴۹٬۰۰۰ تومان', web: '$4.99' } },
 ];
 
 export interface ShopItem {
@@ -414,6 +426,7 @@ export function grantIap(p: Profile, productId: string): boolean {
   if (prod.noAds) p.noAds = true;
   if (prod.pass) p.pass.premium = true;
   if (productId === 'starter_pack') p.offers.starter = true;
+  grantLiveopsIap(p, productId);
   p.payer = true;
   return true;
 }
@@ -445,6 +458,12 @@ export interface RewardResult {
   canDouble: boolean;
   runes: number;
   cards: number;
+  /** fighter mastery gained this match (liveops hook) */
+  mastery?: { fighter: string; xp: number; level: number; up: boolean };
+  /** VIP +10% coins (already included in coins) */
+  vipCoins?: number;
+  /** cosmetics newly unlocked by this match ("kind:id") */
+  unlocked?: string[];
 }
 
 export function applyMatch(p: Profile, m: MatchSummary, now = Date.now()): RewardResult {
@@ -505,7 +524,9 @@ export function applyMatch(p: Profile, m: MatchSummary, now = Date.now()): Rewar
   }
   p.lastReward = { id: m.matchId, coins, doubled: false };
   if (m.mode === 'ranked') trackLeague(p);
-  return { coins, gems, xp, firstWin, levelUps, questsDone, canDouble: coins > 0, runes, cards };
+  const out: RewardResult = { coins, gems, xp, firstWin, levelUps, questsDone, canDouble: coins > 0, runes, cards };
+  liveopsAfterMatch(p, m, out, now);
+  return out;
 }
 
 /** Rewarded-ad "double coins" on the results screen. */
@@ -590,7 +611,8 @@ export function completeTutorial(p: Profile, id: string): { coins: number; gems:
 
 export type FeatureId =
   | 'quests' | 'shop' | 'achievements' | 'pass' | 'crates' | 'milestones' | 'cards' | 'spells' | 'wheel'
-  | 'online' | 'friends' | 'ranked' | 'clans' | 'chat' | 'clanwar';
+  | 'online' | 'friends' | 'ranked' | 'clans' | 'chat' | 'clanwar'
+  | 'deals' | 'collection' | 'mastery' | 'vip';
 /**
  * Progressive onboarding: features open up as the player plays, each with its own guided intro.
  * Everything online (quick match, league, clans, chat) opens once the whole world map is cleared.
@@ -599,7 +621,11 @@ export const FEATURES: { id: FeatureId; level?: number; matches?: number; map?: 
   { id: 'quests', matches: 1 },
   { id: 'milestones', matches: 1 },
   { id: 'shop', matches: 1 },
+  { id: 'deals', matches: 2 },
+  { id: 'collection', matches: 2 },
   { id: 'cards', map: 1 },
+  { id: 'mastery', map: 1 },
+  { id: 'vip', matches: 3 },
   { id: 'achievements', matches: 2 },
   { id: 'wheel', map: 2 },
   { id: 'spells', map: 3 },

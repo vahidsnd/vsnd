@@ -13,3 +13,5 @@ export * from './raid.ts';
 export * from './anticheat.ts';
 export * from './rank.ts';
 export * from './protocol.ts';
+export * from './liveops.ts';
+export * from './cosmetics.ts';

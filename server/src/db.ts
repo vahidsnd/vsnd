@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { newProfile, newSocialDb, refreshDaily, clanTouch, type Profile, type SocialCtx, type SocialDb } from '@nb/shared';
+import { newProfile, newSocialDb, refreshDaily, clanTouch, publicBadges, type Profile, type SocialCtx, type SocialDb } from '@nb/shared';
 import { config } from './config.ts';
 
 /**
@@ -79,7 +79,7 @@ export function leaderboard(limit = 100) {
     .slice(0, limit)
     .map((u, i) => ({
       pos: i + 1, id: u.profile.id, name: u.profile.name, mmr: u.profile.rank.mmr,
-      wins: u.profile.rank.wins, losses: u.profile.rank.losses, fighter: u.profile.selFighter, level: u.profile.level,
+      wins: u.profile.rank.wins, losses: u.profile.rank.losses, fighter: u.profile.selFighter, level: u.profile.level, ...publicBadges(u.profile),
     }));
 }
 
@@ -105,6 +105,6 @@ export function allProfiles() { return Object.values(db.users).map((u) => u.prof
 export function winsLeaderboard(limit = 100) {
   return Object.values(db.users)
     .filter((u) => (u.profile.stats.leagueWins ?? 0) > 0 || u.profile.rank.wins > 0)
-    .map((u) => ({ id: u.profile.id, name: u.profile.name, wins: Math.max(u.profile.stats.leagueWins ?? 0, u.profile.rank.wins), mmr: u.profile.rank.mmr, fighter: u.profile.selFighter, trophies: (u.profile.trophies ?? []).length }))
+    .map((u) => ({ id: u.profile.id, name: u.profile.name, wins: Math.max(u.profile.stats.leagueWins ?? 0, u.profile.rank.wins), mmr: u.profile.rank.mmr, fighter: u.profile.selFighter, trophies: (u.profile.trophies ?? []).length, ...publicBadges(u.profile) }))
     .sort((a, b) => b.wins - a.wins || b.mmr - a.mmr).slice(0, limit).map((x, i) => ({ pos: i + 1, ...x }));
 }

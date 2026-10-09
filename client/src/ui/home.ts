@@ -1,6 +1,6 @@
 import {
   getFighter, LOGIN_REWARDS, passTier, tierFor, IAP_PRODUCTS, claimableAchievements, featureUnlocked, featureRequirement,
-  claimableMilestones, claimableLeague, unreadMail, wheelState, dayKey, MAP_SIZE, romanDiv, fighterPower,
+  claimableMilestones, claimableLeague, unreadMail, wheelState, dayKey, MAP_SIZE, romanDiv, fighterPower, adsRemoved, vipCanClaim, claimableMastery,
   type FeatureId, type QueueFormat,
 } from '@nb/shared';
 import { backend } from '../services/backend.ts';
@@ -11,6 +11,7 @@ import { svg } from './icons.ts';
 import { checkUnlocks, onboarding, silenceExistingUnlocks } from './tutorial.ts';
 import { social } from '../services/social.ts';
 import { t, num, isFa, loc } from '../i18n.ts';
+import { liveopsPopup, refreshOffers } from './liveops.ts';
 
 let loginShownDay = '';
 let starterShown = false;
@@ -42,7 +43,7 @@ export function homeScreen(): Screen {
 
   const fa = isFa();
   const side = h('nav', { class: 'side' },
-    sideBtn('fighters', 'fighters', t('fighters'), () => go('fighters')),
+    sideBtn('fighters', 'fighters', t('fighters'), () => go('fighters'), undefined, open('mastery') ? claimableMastery(p) : 0),
     sideBtn('spells', 'sparkles', fa ? 'جادو' : 'Spells', () => progress((m) => m.spellsScreen()), 'spells'),
     sideBtn('shop', 'shop', t('shop'), () => go('shop'), 'shop'),
     sideBtn('quests', 'quests', t('quests'), () => go('quests'), 'quests', questsReady + msReady + (p.login.claimed ? 0 : 1)),
@@ -61,6 +62,8 @@ export function homeScreen(): Screen {
     tool('chat', 'chat', fa ? 'چت' : 'Chat', () => import('./chat.ts').then((m) => m.openChat()), 0, 'chat'),
     tool('inbox', 'mail', fa ? 'صندوق پیام' : 'Inbox', () => progress((m) => m.inboxScreen()), mail),
     tool('wheel', 'wheel', fa ? 'گردونه شانس' : 'Lucky wheel', () => progress((m) => m.wheelModal(() => show(homeScreen))), wheelFree ? 1 : 0, 'wheel'),
+    tool('collection', 'layers', fa ? 'کلکسیون' : 'Collection', () => import('./collection.ts').then((m) => show(() => m.collectionScreen())), 0, 'collection'),
+    tool('vip', 'crown', 'VIP', () => import('./liveops.ts').then((m) => show(m.vipScreen)), vipCanClaim(p) ? 1 : 0, 'vip'),
   );
 
   const hero = h('div', { class: 'hero' },
@@ -111,7 +114,7 @@ export function homeScreen(): Screen {
   const el = h('div', { class: 'home' },
     topBar(),
     h('div', { class: 'home-body' }, side, hero, modes),
-    p.noAds ? null : h('div', { class: 'ad-slot' }),
+    adsRemoved(p) ? null : h('div', { class: 'ad-slot' }),
   );
 
   // first launch → onboarding; afterwards: unlock popups, daily login, starter offer.
@@ -133,8 +136,10 @@ export function homeScreen(): Screen {
     }
     if (checkUnlocks()) return;
     if (!p.login.claimed && loginShownDay !== p.daily.day && p.stats.matches > 0) { loginShownDay = p.daily.day; loginPopup(); return; }
+    if (liveopsPopup()) return;
     if (!starterShown && !p.offers.starter && p.stats.matches >= 3 && open('shop')) { starterShown = true; starterPopup(); }
   };
+  if (onboardChecked) refreshOffers();
   setTimeout(popups, 350);
 
   return { el, bannerAd: true };

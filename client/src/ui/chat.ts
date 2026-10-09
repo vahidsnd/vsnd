@@ -7,6 +7,8 @@ import { introOnce } from './tutorial.ts';
 import { isFa, num, duration } from '../i18n.ts';
 import { clanScreen, clock, ago, roleTag, socialErrorText, trySocial } from './clan.ts';
 import './social.css';
+import { frameRing, titleTag, vipBadge } from './collection.ts';
+import { publicBadges } from '@nb/shared';
 
 // =============================================================================================
 //  Chat side panel: global, clan, alliance and private (clan mates) channels.
@@ -131,12 +133,23 @@ export function openChat(tab: ChatTab = 'global', dmWith?: { id: string; name: s
     const mine = m.uid === me;
     return h('div', { class: `chat-msg ${mine ? 'me' : ''}`, onclick: mine ? undefined : () => msgMenu(m) },
       h('div', { class: 'chat-meta' },
-        h('b', { class: 'chat-name' }, mine ? tr('you') : m.name),
+        ...msgBadges(m, mine),
         m.tag ? h('span', { class: 'chat-ctag', dir: 'ltr' }, `[${m.tag}]`) : null,
         m.role && m.role !== 'member' ? h('span', { class: `chat-role r-${m.role}` }, (isFa() ? ROLE_NAMES[m.role as ClanRole].fa : ROLE_NAMES[m.role as ClanRole].en)) : null,
         m.lvl ? h('span', { class: 'chat-lvl' }, `${tr('lv')} ${num(m.lvl)}`) : null,
         h('time', {}, clock(m.t))),
       h('div', { class: 'chat-text', dir: 'auto' }, m.text));
+  };
+
+  /** avatar initial in the sender's frame, name, VIP badge and title */
+  const msgBadges = (m: ChatMsg, mine: boolean) => {
+    const b = mine ? publicBadges(backend.profile) : { frame: m.frame, title: m.title, vip: m.vip };
+    return [
+      frameRing(b.frame, h('span', { class: 'chat-ava' }, (m.name || '?').slice(0, 1).toUpperCase()), 'xs'),
+      h('b', { class: 'chat-name' }, mine ? tr('you') : m.name),
+      b.vip ? vipBadge() : null,
+      titleTag(b.title, 'sm'),
+    ];
   };
 
   const refresh = async () => {

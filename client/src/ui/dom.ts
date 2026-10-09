@@ -1,4 +1,4 @@
-import { tierFor, xpForLevel, type CrateResult, getFighter, getSpell, FIGHTERS, type Granted } from '@nb/shared';
+import { tierFor, xpForLevel, type CrateResult, getFighter, getSpell, FIGHTERS, type Granted, equippedFrame, getCosmetic, vipActive } from '@nb/shared';
 import { backend } from '../services/backend.ts';
 import { audio } from '../game/audio.ts';
 import { previewFighter } from '../game/art.ts';
@@ -71,9 +71,9 @@ export function topBar(opts: { back?: () => void; title?: string } = {}) {
   const bar = h('div', { class: opts.title ? 'topbar titled' : 'topbar' },
     opts.back ? h('button', { class: 'btn icon back', onclick: opts.back }, svg(isFa() ? 'chevron' : 'back', 20)) : null,
     opts.title ? h('h2', { class: 'title' }, opts.title) : h('div', { class: 'player-chip', onclick: () => import('./meta.ts').then((m) => show(m.profileScreen)) },
-      h('div', { class: 'lvl', style: { '--xp': `${Math.round((p.xp / xpNeed) * 100)}%` } as any }, h('span', {}, num(p.level))),
+      h('div', { class: `lvl ${equippedFrame(p) ? 'framed' : ''}`, style: { '--xp': `${Math.round((p.xp / xpNeed) * 100)}%`, ...frameVars(equippedFrame(p)) } as any }, h('span', {}, num(p.level))),
       h('div', { class: 'pinfo' },
-        h('div', { class: 'pname' }, p.name, ' ', h('span', { class: 'tier', style: { color: tier.tier.color } }, isFa() ? tier.tier.nameFa : tier.tier.name)),
+        h('div', { class: 'pname' }, p.name, vipActive(p) ? h('span', { class: 'vip-badge' }, 'VIP') : null, ' ', h('span', { class: 'tier', style: { color: tier.tier.color } }, isFa() ? tier.tier.nameFa : tier.tier.name)),
         h('div', { class: 'xpbar' }, h('div', { style: { width: `${(p.xp / xpNeed) * 100}%` } })),
       ),
     ),
@@ -87,6 +87,12 @@ export function topBar(opts: { back?: () => void; title?: string } = {}) {
   });
   (bar as any)._cleanup = un;
   return bar;
+}
+
+/** profile-frame ring colours for the top-bar level badge */
+function frameVars(id: string): Record<string, string> {
+  const f = id ? getCosmetic('frame', id) : undefined;
+  return f ? { '--f1': f.c1!, '--f2': f.c2! } : {};
 }
 
 /** Small "locked" helper: requirement text for a feature that isn't open yet. */

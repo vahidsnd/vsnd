@@ -1,6 +1,7 @@
 import type { Profile } from './economy.ts';
 import type { FighterMods } from './types.ts';
 import { getFighter } from './fighters.ts';
+import { noteRaidStars } from './cosmetics.ts';
 import { fighterMods, sendMail, type Reward } from './progress.ts';
 import {
   clanLog, clanOf, fail, memberOf, myClan, ROLE_RANK, sysMsg, uid,
@@ -237,6 +238,7 @@ export function raidFightEnd(ctx: SocialCtx, p: Profile, fightId: string, res: F
   if (suspicious) { flagCheat(ctx, p, 'raid', `claimed ${Math.round(res.durationSec)}s in ${Math.round(elapsed)}s, dmg ${Math.round(res.dmg)}`, 4); fail('cheat'); }
   if (r.status !== 'live' && ctx.now > r.end + 5 * 60_000) fail('raid-closed'); // small grace for fights started in time
   const stars = raidStars(res);
+  noteRaidStars(p, stars);
   const s = r.slots[f.slot];
   if (s) s.stars = Math.max(s.stars, stars);
   r.attacks.unshift({ uid: p.id, name: p.name, slot: f.slot, stars, t: ctx.now });

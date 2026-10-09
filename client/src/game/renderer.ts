@@ -1,4 +1,4 @@
-import { COUNTDOWN, getFighter, getStage, platformPos, TICK_RATE, type GameEvent, type GameState, type StageDef, getSpell } from '@nb/shared';
+import { COUNTDOWN, getFighter, getStage, platformPos, TICK_RATE, type GameEvent, type GameState, type StageDef, getSpell, titleText } from '@nb/shared';
 import { drawFighter, drawProjectile, INK, PLAYER_COLORS, previewFighter, shade, star } from './art.ts';
 import { t, isFa } from '../i18n.ts';
 import { prefs } from '../services/prefs.ts';
@@ -1982,6 +1982,18 @@ export class Renderer {
         if (p?.bot) name += ` · ${t('bot')}`;
         if (this.trialSlots.has(f.slot)) name += ` · ${t('trial')}`;
         ctx.fillText(name, tx, y0 + H - 6);
+        // player title (cosmetic) in the top corner of the card
+        const ttl = titleText(p?.title, isFa());
+        if (ttl && cardW > 120) {
+          ctx.save();
+          ctx.font = '700 8px Vazirmatn, system-ui, sans-serif';
+          ctx.textAlign = 'right'; ctx.fillStyle = '#ffd66b';
+          const maxW = cardW * 0.5;
+          let s = ttl;
+          while (s.length > 3 && ctx.measureText(s).width > maxW) s = s.slice(0, -2);
+          ctx.fillText(s === ttl ? s : s + '…', x + cardW - 7, y0 + 11);
+          ctx.restore();
+        }
       }
       // magic meter
       const mods = state.cfg.players[f.slot]?.mods;

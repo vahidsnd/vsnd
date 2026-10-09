@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import { createBrain, FIGHTERS, STAGES, SPELLS, fighterMods, type MatchConfig, type QueueFormat, type QueueMode, type RoomInfo } from '@nb/shared';
+import { createBrain, FIGHTERS, STAGES, SPELLS, fighterMods, matchBadges, type MatchConfig, type QueueFormat, type QueueMode, type RoomInfo } from '@nb/shared';
 import { config } from './config.ts';
 import type { UserRec } from './db.ts';
 import { Match, matchByUser, send, type Seat } from './match.ts';
@@ -64,7 +64,7 @@ function launch(mode: QueueMode, format: QueueFormat, group: Ticket[]) {
   const seats: Seat[] = group.map(humanSeat);
   const players: MatchConfig['players'] = group.map((t, i) => {
     const { f, sk } = ownedOrDefault(t.user, t.fighter, t.skin);
-    return { charId: f, skin: sk, team: teams ? i % 2 : i, name: t.user.profile.name, mods: fighterMods(t.user.profile, f) };
+    return { charId: f, skin: sk, team: teams ? i % 2 : i, name: t.user.profile.name, mods: fighterMods(t.user.profile, f), ...matchBadges(t.user.profile) };
   });
   while (seats.length < size) {
     const i = seats.length;
@@ -159,7 +159,7 @@ export function roomStart(user: UserRec) {
   if (!r || r.host !== user) return;
   if (r.members.length + r.bots < 2) return send(r.members[0].ws, { t: 'error', msg: 'need-2-players' });
   const seats: Seat[] = r.members.map(humanSeat);
-  const players: MatchConfig['players'] = r.members.map((m, i) => ({ charId: m.fighter, skin: m.skin, team: r.teams ? m.team : i, name: m.user.profile.name, mods: fighterMods(m.user.profile, m.fighter) }));
+  const players: MatchConfig['players'] = r.members.map((m, i) => ({ charId: m.fighter, skin: m.skin, team: r.teams ? m.team : i, name: m.user.profile.name, mods: fighterMods(m.user.profile, m.fighter), ...matchBadges(m.user.profile) }));
   for (let b = 0; b < r.bots; b++) {
     const i = seats.length;
     seats.push(botSeat(1100));

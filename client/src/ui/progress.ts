@@ -14,6 +14,7 @@ import { h, show, topBar, modal, toast, icon, rewardReveal, grantedToItems, figh
 import { svg } from './icons.ts';
 import { introOnce } from './tutorial.ts';
 import './progress.css';
+import { cosmeticsWhere, cosChip } from './collection.ts';
 
 type Lx = { fa: string; en: string };
 const L = (fa: string, en: string): Lx => ({ fa, en });
@@ -290,7 +291,8 @@ function weeklyBox(): HTMLElement {
   const time = h('b', { dir: 'ltr' }, duration(info.inBreak ? info.toNext : info.left));
   const pos = h('b', {}, '…');
   const podium = h('div', { class: 'week-podium' }, [1, 2, 3].map((pl) => h('div', { class: `pod p${pl}` },
-    h('span', { class: 'pod-cup' }, svg('trophy', 22)), h('small', {}, tr(PLACE_NAMES[pl - 1])), rewardChips(weekPrize(me.tier, pl)))));
+    h('span', { class: 'pod-cup' }, svg('trophy', 22)), h('small', {}, tr(PLACE_NAMES[pl - 1])), rewardChips(weekPrize(me.tier, pl)),
+    cosmeticsWhere((s) => s.t === 'trophy' && s.place === pl && (s.tier === undefined || s.tier === me.tier)).map((c) => cosChip(c, true)))));
   const box = h('div', { class: 'box week-box', style: { '--tc': tt.color } as any },
     h('div', { class: 'row space' },
       h('h3', {}, svg('calendar', 16), ' ', isFa() ? `لیگ هفتگی ${tt.nameFa} · هفته ${num(info.id)}` : `Weekly ${tt.name} league · week ${num(info.id)}`),

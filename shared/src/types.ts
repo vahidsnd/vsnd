@@ -149,7 +149,7 @@ export interface MatchConfig {
   stocks: number;
   timeLimit: number;           // seconds, 0 = none
   teams: boolean;
-  players: { charId: string; skin: number; team: number; name: string; bot?: boolean; mods?: FighterMods }[];
+  players: { charId: string; skin: number; team: number; name: string; bot?: boolean; mods?: FighterMods; title?: string; frame?: string }[];
 }
 
 /** Per-player modifiers from card upgrades and the equipped spell. 1 = neutral. */

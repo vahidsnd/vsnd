@@ -1,6 +1,7 @@
 import {
   ACHIEVEMENTS, CRATE_ODDS, FIGHTERS, IAP_PRODUCTS, PASS_TIERS, PASS_XP_PER_TIER, achievementState, passReward, passTier, seasonEndsAt,
   shopCatalog, skinPrice, tierFor, TIERS, PLACE_NAMES, getFighter, dayKey, xpForLevel, featureUnlocked, fighterPower, type PassReward,
+  equippedTitle, vipActive, adsRemoved,
 } from '@nb/shared';
 import { social } from '../services/social.ts';
 import { upgradePanel, milestonesBlock } from './progress.ts';
@@ -16,9 +17,12 @@ import { svg } from './icons.ts';
 import { specialsList } from './movelist.ts';
 import { introOnce, resetIntros } from './tutorial.ts';
 import { homeScreen } from './home.ts';
+import { dealsTab } from './liveops.ts';
+import { frameRing, myFrame, titleTag, masteryBadge, masteryPanel, masteryList, vipBadge, cosmeticsWhere, cosChip } from './collection.ts';
 
 const home = () => show(homeScreen);
 const L = (fa: string, en: string) => ({ fa, en });
+const tr2 = (fa: string, en: string) => (isFa() ? fa : en);
 
 // ============================================================================================
 // Fighters
@@ -36,6 +40,7 @@ export function fightersScreen(selected = backend.profile.selFighter): Screen {
       h('span', {}, loc(f)),
       own && featureUnlocked(p, 'cards') ? h('span', { class: 'pw' }, num(fighterPower(p, f.id))) : null,
       own && (p.cards[f.id] ?? 0) > 0 ? h('span', { class: 'cards-n' }, num(p.cards[f.id])) : null,
+      own && featureUnlocked(p, 'mastery') ? masteryBadge(f.id) : null,
       own ? (p.selFighter === f.id ? h('span', { class: 'tag ok' }, svg('check', 12)) : null) : h('span', { class: 'tag lock' }, svg('lock', 12)));
   }));
 
@@ -87,6 +92,7 @@ export function fightersScreen(selected = backend.profile.selFighter): Screen {
     h('div', { class: 'fd-info' },
       h('h2', {}, loc(def), h('small', {}, isFa() ? def.titleFa : def.title)),
       stats,
+      featureUnlocked(p, 'mastery') ? masteryPanel(def.id, () => show(() => fightersScreen(def.id))) : null,
       owned && featureUnlocked(p, 'cards') ? upgradePanel(def.id, () => show(() => fightersScreen(def.id))) : null,
       specialsList(def.id),
       fs ? h('small', { class: 'muted' }, `${t('matchesShort')}: ${num(fs.m)} · ${t('wins')}: ${num(fs.w)}`) : null,
@@ -104,11 +110,11 @@ export function fightersScreen(selected = backend.profile.selFighter): Screen {
 // ============================================================================================
 // Shop
 // ============================================================================================
-type ShopTab = 'featured' | 'gems' | 'fighters' | 'skins' | 'coins' | 'crates';
+type ShopTab = 'deals' | 'featured' | 'gems' | 'fighters' | 'skins' | 'coins' | 'crates';
 
-export function shopScreen(tab: ShopTab = 'featured'): Screen {
-  const tabs: ShopTab[] = ['featured', 'gems', 'fighters', 'skins', 'coins', 'crates'];
-  const label: Record<ShopTab, string> = { featured: t('featured'), gems: t('gemsTab'), fighters: t('fightersTab'), skins: t('skinsTab'), coins: t('coinsTab'), crates: t('crates') };
+export function shopScreen(tab: ShopTab = featureUnlocked(backend.profile, 'deals') ? 'deals' : 'featured'): Screen {
+  const tabs: ShopTab[] = [...(featureUnlocked(backend.profile, 'deals') ? ['deals' as const] : []), 'featured', 'gems', 'fighters', 'skins', 'coins', 'crates'];
+  const label: Record<ShopTab, string> = { deals: isFa() ? 'پیشنهاد روز' : 'Daily deals', featured: t('featured'), gems: t('gemsTab'), fighters: t('fightersTab'), skins: t('skinsTab'), coins: t('coinsTab'), crates: t('crates') };
   const el = h('div', { class: 'page shop' },
     topBar({ back: home, title: t('shop') }),
     h('div', { class: 'tabs' }, tabs.map((x) => h('button', { class: `tab ${x === tab ? 'on' : ''}`, onclick: () => show(() => shopScreen(x)) }, label[x]))),
@@ -161,10 +167,20 @@ function renderShopTab(tab: ShopTab): Child {
   const p = backend.profile;
   const cat = shopCatalog();
   switch (tab) {
+    case 'deals': return dealsTab(() => show(() => shopScreen('deals')));
     case 'featured': return h('div', { class: 'cards' },
       !p.offers.starter ? iapCard('starter_pack', h('div', { class: 'duo' }, fighterCanvas('zephyr', 0, 84), fighterCanvas('blaze', 1, 84)), 'hot') : null,
       !p.pass.premium ? iapCard('season_pass', artIco('pass', 'c-gold')) : null,
-      !p.noAds ? iapCard('no_ads', artIco('noads', 'c-mag')) : h('div', { class: 'card' }, artIco('check', 'c-green'), h('b', {}, t('noAdsActive'))),
+      !adsRemoved(p) ? iapCard('no_ads', artIco('noads', 'c-mag')) : h('div', { class: 'card' }, artIco('check', 'c-green'), h('b', {}, t('noAdsActive'))),
+      featureUnlocked(p, 'vip') ? h('div', { class: 'card iap vip-shop' },
+        h('div', { class: 'ribbon' }, vipActive(p) ? tr2('فعال', 'Active') : 'VIP'),
+        h('div', { class: 'card-art' }, artIco('crown', 'c-gold')),
+        h('b', {}, isFa() ? 'اشتراک VIP' : 'VIP membership'),
+        h('button', { class: 'btn gold', onclick: () => import('./liveops.ts').then((m) => show(m.vipScreen)) }, vipActive(p) ? tr2('تمدید', 'Renew') : billing.price(IAP_PRODUCTS.find((x) => x.id === 'vip_month')!))) : null,
+      featureUnlocked(p, 'collection') ? h('div', { class: 'card' },
+        h('div', { class: 'card-art' }, artIco('layers', 'c-cyan')),
+        h('b', {}, isFa() ? 'ایموت، قاب، لقب، ژست' : 'Emotes, frames, titles, poses'),
+        h('button', { class: 'btn accent', onclick: () => import('./collection.ts').then((m) => show(() => m.collectionScreen())) }, svg('layers', 16), isFa() ? 'کلکسیون' : 'Collection')) : null,
       p.fighters.length < FIGHTERS.length ? iapCard('all_fighters', h('div', { class: 'duo' }, fighterCanvas('kira', 0, 76), fighterCanvas('pip', 0, 76))) : null,
       h('div', { class: 'card' },
         h('div', { class: 'card-art' }, artIco('coins', 'c-gold')),
@@ -266,6 +282,7 @@ export function passScreen(): Screen {
       const locked = premium && !p.pass.premium;
       return h('div', { class: `pcell ${premium ? 'prem' : ''} ${claimed ? 'claimed' : ''} ${reached && !claimed && !locked ? 'ready' : ''}` },
         rewardView(passReward(i, premium)),
+        cosmeticsWhere((s) => s.t === 'pass' && s.tier === i && !!s.premium === premium).map((c) => cosChip(c, true)),
         locked ? h('span', { class: 'corner' }, svg('lock', 12)) : claimed ? h('span', { class: 'corner' }, svg('check', 14)) :
           reached ? h('button', { class: 'btn small accent', onclick: () => claim(i, premium) }, t('claim')) : null);
     };
@@ -358,7 +375,8 @@ export function achievementsScreen(): Screen {
         h('b', {}, isFa() ? a.nameFa : a.name),
         h('small', {}, isFa() ? a.descFa : a.desc),
         h('div', { class: 'xpbar' }, h('div', { style: { width: `${(st.value / a.goal) * 100}%` } })),
-        h('small', {}, a.goal > 100 ? '' : h('span', { dir: 'ltr' }, `${num(st.value)} / ${num(a.goal)}`), ' ', a.reward.coins ? currency('coin', a.reward.coins) : null, ' ', a.reward.gems ? currency('gem', a.reward.gems) : null)),
+        h('small', {}, a.goal > 100 ? '' : h('span', { dir: 'ltr' }, `${num(st.value)} / ${num(a.goal)}`), ' ', a.reward.coins ? currency('coin', a.reward.coins) : null, ' ', a.reward.gems ? currency('gem', a.reward.gems) : null,
+          ...cosmeticsWhere((s) => s.t === 'ach' && s.id === a.id).map((c) => cosChip(c)))),
       st.claimed ? h('span', { class: 'tag ok' }, svg('check', 12)) :
         st.done ? h('button', { class: 'btn small gold', onclick: async () => {
           const r = await backend.claimAchievement(a.id).catch(() => null);
@@ -388,16 +406,19 @@ export function profileScreen(): Screen {
     topBar({ back: home, title: t('profile') }),
     h('div', { class: 'scroll' },
       h('div', { class: 'profile-head' },
-        fighterCanvas(fav, backend.selectedSkin(fav), 96),
+        frameRing(myFrame(), fighterCanvas(fav, backend.selectedSkin(fav), 96), 'big'),
         h('div', { class: 'who' },
-          h('h2', {}, p.name),
+          h('h2', {}, p.name, vipActive(p) ? vipBadge() : null),
+          titleTag(equippedTitle(p)),
           h('div', { class: 'row', style: { justifyContent: 'flex-start' } },
             h('span', { class: 'tag' }, `${t('level')} ${num(p.level)}`),
             h('span', { class: 'tag', style: { color: tier.tier.color } }, `${isFa() ? tier.tier.nameFa : tier.tier.name} · ${num(p.rank.mmr)}`),
             h('span', { class: 'tag' }, `${t('peak')} ${num(p.rank.peak)}`)),
           h('div', { class: 'xpbar wide', style: { maxWidth: '320px' } }, h('div', { style: { width: `${(p.xp / xpForLevel(p.level)) * 100}%` } })),
           h('small', { class: 'muted', dir: 'ltr' }, `${num(p.xp)} / ${num(xpForLevel(p.level))} XP`)),
-        h('button', { class: 'btn ghost small', onclick: () => show(settingsScreen) }, svg('settings', 14), t('settings')),
+        h('div', { class: 'ph-actions' },
+          featureUnlocked(p, 'collection') ? h('button', { class: 'btn accent small', onclick: () => import('./collection.ts').then((m) => show(() => m.collectionScreen())) }, svg('layers', 14), isFa() ? 'کلکسیون' : 'Collection') : null,
+          h('button', { class: 'btn ghost small', onclick: () => show(settingsScreen) }, svg('settings', 14), t('settings'))),
       ),
       h('div', { class: 'stat-grid' },
         box(num(p.stats.matches), t('statMatches')), box(num(p.stats.wins), t('statWins')), box(`${num(winRate)}%`, t('statWinRate')),
@@ -412,13 +433,7 @@ export function profileScreen(): Screen {
             h('small', { style: { color: tt.color } }, isFa() ? tt.nameFa : tt.name), h('small', { class: 'muted' }, `${isFa() ? 'هفته' : 'week'} ${num(tr.week)}`));
         })) : h('p', { class: 'muted' }, isFa() ? 'هنوز جامی نداری. در لیگ هفتگی جزو سه نفر اول شو!' : 'No trophies yet. Finish top 3 in a weekly league!')),
       h('div', { class: 'two-col' },
-        h('div', { class: 'box' }, h('h3', {}, t('mastery')),
-          FIGHTERS.map((f) => {
-            const fs = p.fstats[f.id] ?? { m: 0, w: 0 };
-            return h('div', { class: 'mastery' }, fighterCanvas(f.id, backend.selectedSkin(f.id), 34),
-              h('div', {}, h('b', {}, loc(f)), h('div', { class: 'xpbar' }, h('div', { style: { width: `${Math.min(100, fs.m * 4)}%` } }))),
-              h('small', { class: 'muted', dir: 'ltr' }, `${num(fs.w)} / ${num(fs.m)}`));
-          })),
+        masteryList(),
         h('div', { class: 'box' }, h('h3', {}, svg('history', 16), ' ', t('history')),
           p.history.length ? p.history.map((m) => h('div', { class: 'hist' },
             h('span', { class: `wl ${m.won ? 'w' : 'l'}` }, m.won ? t('winShort') : t('lossShort')),
@@ -445,21 +460,25 @@ export function leaderboardScreen(tab: LbTab = 'players'): Screen {
   const empty = (msg = t('lbEmpty')) => { list.innerHTML = ''; list.append(h('div', { class: 'muted center' }, msg)); };
   const fill = (rows: HTMLElement[]) => { list.innerHTML = ''; if (!rows.length) empty(); else list.append(...rows); };
   const fail = () => empty(backend.online || social().demo ? t('lbEmpty') : t('noLeaderboard'));
+  // frames / titles / VIP: from the server row, or the player's own equipped ones for their row
+  const lbFrame = (r: { id: string; frame?: string }) => r.frame ?? (r.id === p.id ? myFrame() : '');
+  const lbTitle = (r: { id: string; title?: string }) => r.title ?? (r.id === p.id ? equippedTitle(p) : '');
+  const lbVip = (r: { id: string; vip?: boolean }) => (r.vip ?? (r.id === p.id && vipActive(p))) ? vipBadge() : null;
   if (tab === 'players') {
     backend.leaderboard().then((rows) => fill(rows.map((r) => {
       const ti = tierFor(r.mmr);
-      return h('div', { class: `lb-row ${r.id === p.id ? 'me' : ''}` }, pos(r.pos), fighterCanvas(r.fighter, 0, 40),
-        h('div', { class: 'who' }, h('b', {}, r.name), h('small', {}, h('span', { style: { color: ti.tier.color } }, fa ? ti.tier.nameFa : ti.tier.name), ` · ${num(r.wins)}${t('wins')} / ${num(r.losses)}${t('losses')}`)),
+      return h('div', { class: `lb-row ${r.id === p.id ? 'me' : ''}` }, pos(r.pos), frameRing(lbFrame(r), fighterCanvas(r.fighter, 0, 40)),
+        h('div', { class: 'who' }, h('b', {}, r.name, lbVip(r), titleTag(lbTitle(r), 'sm')), h('small', {}, h('span', { style: { color: ti.tier.color } }, fa ? ti.tier.nameFa : ti.tier.name), ` · ${num(r.wins)}${t('wins')} / ${num(r.losses)}${t('losses')}`)),
         h('b', {}, num(r.mmr)));
     }))).catch(fail);
     if (!backend.online) social().winsLeaderboard().then((rows) => fill(rows.sort((a, b) => b.mmr - a.mmr).map((r, i) => {
       const ti = tierFor(r.mmr);
-      return h('div', { class: `lb-row ${r.id === p.id ? 'me' : ''}` }, pos(i + 1), fighterCanvas(r.fighter, 0, 40),
-        h('div', { class: 'who' }, h('b', {}, r.name), h('small', { style: { color: ti.tier.color } }, fa ? ti.tier.nameFa : ti.tier.name)), h('b', {}, num(r.mmr)));
+      return h('div', { class: `lb-row ${r.id === p.id ? 'me' : ''}` }, pos(i + 1), frameRing(lbFrame(r), fighterCanvas(r.fighter, 0, 40)),
+        h('div', { class: 'who' }, h('b', {}, r.name, lbVip(r), titleTag(lbTitle(r), 'sm')), h('small', { style: { color: ti.tier.color } }, fa ? ti.tier.nameFa : ti.tier.name)), h('b', {}, num(r.mmr)));
     }))).catch(fail);
   } else if (tab === 'wins') {
-    social().winsLeaderboard().then((rows) => fill(rows.map((r) => h('div', { class: `lb-row ${r.id === p.id ? 'me' : ''}` }, pos(r.pos), fighterCanvas(r.fighter, 0, 40),
-      h('div', { class: 'who' }, h('b', {}, r.name), h('small', {}, `${fa ? 'جام‌ها' : 'trophies'} ${num(r.trophies)} · ${num(r.mmr)}`)),
+    social().winsLeaderboard().then((rows) => fill(rows.map((r) => h('div', { class: `lb-row ${r.id === p.id ? 'me' : ''}` }, pos(r.pos), frameRing(lbFrame(r), fighterCanvas(r.fighter, 0, 40)),
+      h('div', { class: 'who' }, h('b', {}, r.name, lbVip(r), titleTag(lbTitle(r), 'sm')), h('small', {}, `${fa ? 'جام‌ها' : 'trophies'} ${num(r.trophies)} · ${num(r.mmr)}`)),
       h('b', {}, num(r.wins), h('small', { class: 'muted' }, ` ${fa ? 'برد' : 'wins'}`)))))).catch(fail);
   } else if (tab === 'week') {
     social().weekStandings().then((w) => {
@@ -515,7 +534,7 @@ export function settingsScreen(): Screen {
         range(t('btnSize'), prefs.btnScale, 0.8, 1.25, (v) => setPref('btnScale', v)),
         range(t('btnOpacity'), prefs.btnOpacity, 0.35, 1, (v) => setPref('btnOpacity', v)),
         h('div', { class: 'field' }, h('span', {}, t('removeAds')),
-          p.noAds ? h('span', { class: 'tag ok' }, t('noAdsActive')) : h('button', { class: 'btn small gold', onclick: () => buyIap('no_ads', () => show(settingsScreen)) }, billing.price(IAP_PRODUCTS.find((x) => x.id === 'no_ads')!))),
+          adsRemoved(p) ? h('span', { class: 'tag ok' }, t('noAdsActive')) : h('button', { class: 'btn small gold', onclick: () => buyIap('no_ads', () => show(settingsScreen)) }, billing.price(IAP_PRODUCTS.find((x) => x.id === 'no_ads')!))),
         h('div', { class: 'field' }, h('span', {}, t('server')), srv,
           h('button', { class: 'btn small accent', onclick: () => { store.set('server', srv.value.trim()); location.reload(); } }, t('save'))),
       ),

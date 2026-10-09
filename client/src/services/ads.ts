@@ -1,3 +1,4 @@
+import { adsRemoved } from '@nb/shared';
 import { backend } from './backend.ts';
 import { isNative, MARKET, store } from './platform.ts';
 import { t } from '../i18n.ts';
@@ -143,7 +144,7 @@ class AdService {
 
   async maybeInterstitial(): Promise<void> {
     const p = backend.profile;
-    if (!this.ready || p.noAds || p.stats.matches < 3) return;
+    if (!this.ready || adsRemoved(p) || p.stats.matches < 3) return;
     const every = p.payer ? 5 : 3;
     if (this.matchesSince < every || Date.now() - this.lastInterstitial < 150_000) return;
     this.matchesSince = 0; store.set('ads.since', 0);
@@ -153,7 +154,7 @@ class AdService {
 
   async banner(show: boolean, temporary = false) {
     if (!this.ready) return;
-    const want = show && !backend.profile.noAds;
+    const want = show && !adsRemoved(backend.profile);
     if (want === this.bannerOn) return;
     if (!temporary) this.bannerOn = want;
     try { await this.provider.banner(want); } catch { /* no fill */ }

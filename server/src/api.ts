@@ -6,6 +6,7 @@ import {
   collectDonations, MAP_SIZE, checkSummary, flagCheat, rewardsWithheld, RateLimiter,
 } from '@nb/shared';
 import { HttpError, need, socialRoutes } from './social.ts';
+import { liveopsRoutes } from './liveops.ts';
 import { socialCtx } from './db.ts';
 import { config } from './config.ts';
 import { winsLeaderboard, createGuest, isPurchaseTokenUsed, leaderboard, markDirty, markPurchaseToken, sanitizeName, userByToken, type UserRec } from './db.ts';
@@ -172,6 +173,7 @@ const routes: Record<string, Handler> = {
   'GET /api/leaderboard/wins': () => ({ top: winsLeaderboard(100) }),
   'GET /api/health': () => ({ ok: true }),
   ...socialRoutes,
+  ...liveopsRoutes,
 };
 
 function clamp(v: unknown, lo: number, hi: number) {

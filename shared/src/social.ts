@@ -4,6 +4,7 @@ import {
   type Granted, type Reward,
 } from './progress.ts';
 import { getFighter } from './fighters.ts';
+import { publicBadges } from './cosmetics.ts';
 
 // =====================================================================================
 //  Social engine: clans (roles, gem upgrades, card donations, alliances, wars), chat
@@ -69,7 +70,7 @@ export interface ClanRaidState {
   trophies: number;                       // clan trophies (raid wins/losses)
   log: { t: number; raid: string; vsName: string; vsTag: string; attacker: boolean; our: number; max: number; won: boolean }[];
 }
-export interface ChatMsg { id: string; ch: string; uid: string; name: string; tag?: string; role?: ClanRole; lvl?: number; text: string; t: number; sys?: boolean }
+export interface ChatMsg { id: string; ch: string; uid: string; name: string; tag?: string; role?: ClanRole; lvl?: number; text: string; t: number; sys?: boolean; frame?: string; title?: string; vip?: boolean }
 export interface Report {
   id: string; t: number; by: string; byName: string; target: string; targetName: string;
   msgId?: string; text?: string; ch?: string; reason: string; status: 'open' | 'done'; action?: string;
@@ -598,7 +599,7 @@ export function chatPost(ctx: SocialCtx, p: Profile, ch: string, raw: string): C
   const out: ChatMsg[] = [];
   const id = uid(ctx, 'c');
   for (const key of acc.write) {
-    const msg: ChatMsg = { id, ch: key, uid: p.id, name: p.name, tag: c?.tag, role: m?.role, lvl: p.level, text, t: ctx.now };
+    const msg: ChatMsg = { id, ch: key, uid: p.id, name: p.name, tag: c?.tag, role: m?.role, lvl: p.level, text, t: ctx.now, ...publicBadges(p, ctx.now) };
     pushMsg(ctx, msg); out.push(msg);
   }
   return out;

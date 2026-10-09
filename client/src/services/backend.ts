@@ -71,7 +71,8 @@ class Backend {
     } finally { clearTimeout(to); }
   }
 
-  private async run<R>(path: string, body: unknown, local: (p: Profile) => R, pick: (j: any) => R): Promise<R> {
+  /** runs a rule on the server (online) or the same shared function locally (offline) */
+  async run<R>(path: string, body: unknown, local: (p: Profile) => R, pick: (j: any) => R): Promise<R> {
     if (this.online) {
       const j = await this.req<any>('POST', path, body);
       if (j.profile) this.set(j.profile);

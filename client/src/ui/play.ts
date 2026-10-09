@@ -19,6 +19,10 @@ import { introOnce, TUTORIAL, tutorialText } from './tutorial.ts';
 import { homeScreen } from './home.ts';
 import { social } from '../services/social.ts';
 import { grantedToItems } from './dom.ts';
+import { matchBadges, poseFor } from '@nb/shared';
+import { emoteBar, titleTag, cosChipsFor, masteryClaim } from './collection.ts';
+import { featureUnlocked } from '@nb/shared';
+import { poseCanvas } from '../game/poses.ts';
 
 const home = () => show(homeScreen);
 type Replay = () => void;
@@ -183,7 +187,7 @@ export function startCpuMatch(o: { fighter?: string; skin?: number; trial?: bool
   const level = o.level ?? Math.min(9, 2 + Math.floor(p.level / 3));
   const stagePool = STAGES.filter((s) => stageUnlocked(p, s.id));
   const stage = o.stage ?? stagePool[Math.floor(Math.random() * stagePool.length)].id;
-  const players: MatchConfig['players'] = [{ charId: fighter, skin, team: 0, name: p.name, mods: o.trial ? undefined : fighterMods(p, fighter) }];
+  const players: MatchConfig['players'] = [{ charId: fighter, skin, team: 0, name: p.name, mods: o.trial ? undefined : fighterMods(p, fighter), ...matchBadges(p) }];
   const sources: (InputSource | null)[] = [null];
   const bots: (number | null)[] = [null];
   for (let i = 0; i < opp; i++) {
@@ -226,7 +230,7 @@ export function startMapNode(i: number) {
   const node = mapNodes()[i];
   if (!node) return;
   const fighter = p.selFighter;
-  const players: MatchConfig['players'] = [{ charId: fighter, skin: backend.selectedSkin(fighter), team: 0, name: p.name, mods: fighterMods(p, fighter) }];
+  const players: MatchConfig['players'] = [{ charId: fighter, skin: backend.selectedSkin(fighter), team: 0, name: p.name, mods: fighterMods(p, fighter), ...matchBadges(p) }];
   const sources: (InputSource | null)[] = [playerSource(true)];
   const bots: (number | null)[] = [null];
   const teams = node.kind === 'team';
@@ -410,13 +414,9 @@ function gameScreen(session: Session, o: GameOpts): Screen {
       modeBtn, hbBtn, h('span', { class: 'info combo' })));
   }
   if (o.online) {
-    const emotes = ['GG', 'GL', '!', '?', '👍'];
-    top.append(h('div', { class: 'emotes' }, emotes.map((e, i) => h('button', { class: 'btn icon small', onclick: () => net.send({ t: 'emote', id: i }) }, e))));
-    const offEm = net.on('emote', (m) => {
-      const b = h('div', { class: 'emote-pop', style: { color: PLAYER_COLORS[m.slot] } }, `P${m.slot + 1}: ${emotes[m.id] ?? '?'}`);
-      el.append(b); setTimeout(() => b.remove(), 1800);
-    });
-    (el as any)._cleanup = offEm;
+    const bar = emoteBar(el);
+    top.append(bar.el);
+    (el as any)._cleanup = bar.off;
   } else top.append(h('span'));
 
   const me = session.state.fighters[session.localSlots[0] ?? 0];
@@ -530,7 +530,7 @@ function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: 
       h('span', { class: 'place' }, num(place)),
       fighterCanvas(f.charId, displaySkin(state, i), 40),
       h('div', { class: 'who' },
-        h('b', {}, pl.name, pl.bot ? h('small', { class: 'muted' }, ` · ${t('bot')}`) : null),
+        h('b', {}, pl.name, pl.bot ? h('small', { class: 'muted' }, ` · ${t('bot')}`) : null, titleTag(pl.title, 'sm')),
         h('small', { class: 'muted' }, `${t('kos')} ${num(s.kos)} · ${t('falls')} ${num(s.falls)} · ${t('damage')} ${num(Math.round(s.dmgDealt))}% · ${t('combo')} ${num(s.maxCombo)}`)));
   });
 
@@ -543,8 +543,11 @@ function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: 
       h('span', { class: 'cur big' }, svg('star', 16), `+${num(r.xp)} XP`),
       r.runes ? h('span', { class: 'cur big rune' }, icon('rune'), `+${num(r.runes)}`) : null,
       r.cards ? h('span', { class: 'cur big' }, svg('fighters', 16), `+${num(r.cards)}`) : null,
+      r.mastery ? h('span', { class: `cur big mastery-gain ${r.mastery.up ? 'up' : ''}` }, svg('medal', 16), `+${num(r.mastery.xp)}`, r.mastery.up ? h('small', {}, ` ${isFa() ? 'استادی' : 'Mastery'} ${num(r.mastery.level)}`) : null) : null,
+      r.vipCoins ? h('span', { class: 'cur big vip-gain' }, 'VIP ', `+${num(r.vipCoins)}`) : null,
       r.mmrDelta !== undefined ? h('span', { class: `cur big ${r.mmrDelta >= 0 ? 'up' : 'down'}` }, `${r.mmrDelta >= 0 ? '▲' : '▼'} ${num(Math.abs(r.mmrDelta))}`) : null,
     ),
+    r.unlocked?.length ? h('div', { class: 'row res-unlocked' }, h('small', { class: 'muted' }, isFa() ? 'جدید در کلکسیون:' : 'New in collection:'), ...cosChipsFor(r.unlocked)) : null,
     r.firstWin ? h('div', { class: 'tag gold' }, svg('medal', 12), t('firstWin')) : null,
     r.questsDone.length ? h('div', { class: 'tag ok' }, svg('quests', 12), t('questDone'), ` ×${num(r.questsDone.length)}`) : null,
     r.canDouble && r.coins > 0 ? h('button', { class: 'btn ad big', onclick: async (e: Event) => {
@@ -558,6 +561,13 @@ function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: 
 
   if (r?.levelUps.length) setTimeout(() => rewardReveal(`${t('levelUp')} ${num(r.levelUps[r.levelUps.length - 1].level)}`,
     r.levelUps.flatMap((l) => [{ kind: 'coin' as const, amount: l.coins }, ...(l.gems ? [{ kind: 'gem' as const, amount: l.gems }] : [])])), 900);
+
+  // fighter mastery level-up: claim and reveal the level rewards once the other popups are gone
+  const mu = r?.mastery;
+  if (mu?.up && featureUnlocked(backend.profile, 'mastery') && backend.profile.fighters.includes(mu.fighter)) {
+    const wait = () => { if (!el.isConnected) return; if (document.querySelector('.modal-wrap')) { setTimeout(wait, 500); return; } masteryClaim(mu.fighter, () => {})(); };
+    setTimeout(wait, r!.levelUps.length || o.map?.clear?.granted ? 1600 : 1100);
+  }
 
   const next = async (fn: () => void) => { await ads.maybeInterstitial(); fn(); };
   const mc = o.map?.clear;
@@ -574,7 +584,7 @@ function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: 
   const nextNode = o.map && mc?.firstClear && o.map.node + 1 < MAP_SIZE ? o.map.node + 1 : -1;
   const el = h('div', { class: `page results ${won ? 'win' : draw ? '' : 'lose'}` },
     h('div', { class: 'res-head' },
-      fighterCanvas(me.charId, displaySkin(state, mySlot), 110, won ? 'air' : 'idle'),
+      won ? poseCanvas(me.charId, displaySkin(state, mySlot), 120, poseFor(backend.profile, me.charId)) : fighterCanvas(me.charId, displaySkin(state, mySlot), 110, 'idle'),
       h('h1', { class: 'title-grad' }, draw ? t('draw') : won ? t('victory') : t('defeat')),
     ),
     h('div', { class: 'res-body' }, h('div', { class: 'res-table' }, rows), h('div', { class: 'res-side' }, mapBlock, rewards)),

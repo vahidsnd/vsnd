@@ -4,6 +4,7 @@ import { getSpell, SPELLS, SPELL_MAX_LEVEL } from './spells.ts';
 import { leagueSteps, promotionReward, SEASON_REWARDS, tierFor, type LeagueId } from './rank.ts';
 import { addXp, openCrate, type CrateResult, type LevelUp, type Profile } from './economy.ts';
 import type { FighterMods } from './types.ts';
+import { migrateLiveops, useVipSpin, vipSpinAvailable } from './liveops.ts';
 
 // =====================================================================================
 //  Progression systems layered on top of the core economy:
@@ -96,6 +97,7 @@ export function migrateProgress(p: Profile): Profile {
   p.daily.ms ??= [];
   p.daily.cardReq ??= 0;
   p.daily.donated ??= 0;
+  migrateLiveops(p);
   return p;
 }
 
@@ -357,12 +359,12 @@ export const WHEEL_ADS_PER_DAY = 3;
 export function wheelState(p: Profile, today: string) {
   migrateProgress(p);
   if (p.wheel.day !== today) p.wheel = { day: today, free: false, ads: 0 };
-  return { free: !p.wheel.free, ads: WHEEL_ADS_PER_DAY - p.wheel.ads };
+  return { free: !p.wheel.free || vipSpinAvailable(p, today), ads: WHEEL_ADS_PER_DAY - p.wheel.ads };
 }
 export function spinWheel(p: Profile, today: string, viaAd: boolean, rand: () => number = Math.random): { index: number; granted: Granted } | null {
   const st = wheelState(p, today);
   if (viaAd ? st.ads <= 0 : !st.free) return null;
-  if (viaAd) p.wheel.ads++; else p.wheel.free = true;
+  if (viaAd) p.wheel.ads++; else if (!p.wheel.free) p.wheel.free = true; else useVipSpin(p, today);
   const total = WHEEL.reduce((a, w) => a + w.weight, 0);
   let roll = rand() * total, index = 0;
   for (let i = 0; i < WHEEL.length; i++) { if ((roll -= WHEEL[i].weight) < 0) { index = i; break; } }

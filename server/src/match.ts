@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import type { WebSocket } from 'ws';
 import {
   applyMatch, botInput, createBrain, createGame, eloDelta, encodeFighters, encodeMeta, encodeProjectiles,
-  placements, step, SNAPSHOT_EVERY, TICK_RATE, COUNTDOWN, trackLeague, warReport, clanOf, addWeekResult, INPUT_MASK, flagCheat,
+  placements, step, SNAPSHOT_EVERY, TICK_RATE, COUNTDOWN, trackLeague, warReport, clanOf, addWeekResult, INPUT_MASK, flagCheat, ownsEmoteNet,
   type BotBrain, type GameEvent, type GameState, type MatchConfig, type MatchEndInfo, type ServerMsg,
 } from '@nb/shared';
 import { markDirty, socialCtx, type UserRec } from './db.ts';
@@ -106,7 +106,7 @@ export class Match {
 
   emote(user: UserRec, id: number) {
     const slot = this.seats.findIndex((x) => x.user === user);
-    if (slot < 0) return;
+    if (slot < 0 || !ownsEmoteNet(user.profile, id | 0)) return;
     for (const s of this.seats) send(s.ws, { t: 'emote', slot, id: id | 0 });
   }
 
