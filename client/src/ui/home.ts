@@ -118,6 +118,7 @@ export function homeScreen(): Screen {
   // Waits until no other window (e.g. a reward) is open so popups never stack.
   const popups = () => {
     if (!el.isConnected || document.querySelector('.game')) return;
+    if (backend.tampered) { backend.tampered = false; toast(isFa() ? 'فایل ذخیره بازی دستکاری شده بود؛ سکه و الماس بازنشانی شد.' : 'The save file was edited outside the game; coins and gems were reset.', 'err'); }
     if (document.querySelector('.modal-wrap, .coach-bubble')) { setTimeout(popups, 500); return; }
     if (!onboardChecked) {
       onboardChecked = true;

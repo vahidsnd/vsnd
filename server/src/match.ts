@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import type { WebSocket } from 'ws';
 import {
   applyMatch, botInput, createBrain, createGame, eloDelta, encodeFighters, encodeMeta, encodeProjectiles,
-  placements, step, SNAPSHOT_EVERY, TICK_RATE, COUNTDOWN, trackLeague, warReport, clanOf,
+  placements, step, SNAPSHOT_EVERY, TICK_RATE, COUNTDOWN, trackLeague, warReport, clanOf, addWeekResult, INPUT_MASK, flagCheat,
   type BotBrain, type GameEvent, type GameState, type MatchConfig, type MatchEndInfo, type ServerMsg,
 } from '@nb/shared';
 import { markDirty, socialCtx, type UserRec } from './db.ts';
@@ -20,6 +20,7 @@ export interface Seat {
   ack: number;
   dcAt: number;
   mmr: number;
+  flagged?: boolean;
 }
 
 export const activeMatches = new Map<string, Match>();
@@ -65,10 +66,16 @@ export class Match {
   onInput(user: UserRec, s: number, bits: number[]) {
     const seat = this.seats.find((x) => x.user === user);
     if (!seat || !Array.isArray(bits)) return;
+    if (bits.length > 8 || !Number.isInteger(s)) return;
     const first = s - bits.length + 1;
+    // a client can't produce inputs faster than real time: far-ahead sequence numbers = speed hack / flood
+    if (seat.nextSeq > 0 && first > seat.nextSeq + 120) {
+      if (!seat.flagged) { seat.flagged = true; flagCheat(socialCtx(), user.profile, 'speed', `input seq jumped ${first - seat.nextSeq} frames`, 3); }
+      return;
+    }
     bits.forEach((b, i) => {
       const seq = first + i;
-      if (seq >= seat.nextSeq) { seat.queue.push([seq, b | 0]); seat.nextSeq = seq + 1; }
+      if (seq >= seat.nextSeq) { seat.queue.push([seq, (b | 0) & INPUT_MASK]); seat.nextSeq = seq + 1; }
     });
     if (seat.queue.length > 30) seat.queue.splice(0, seat.queue.length - 30);
   }
@@ -177,6 +184,7 @@ export class Match {
         if (won) { p.rank.wins++; p.rank.streak = Math.max(1, p.rank.streak + 1); } else { p.rank.losses++; p.rank.streak = 0; }
         reward.mmrDelta = mmrDelta;
         trackLeague(p);
+        addWeekResult(p, won, f.stats.falls, Date.now());
       }
       if (this.mode !== 'private') {
         const ctx = socialCtx();

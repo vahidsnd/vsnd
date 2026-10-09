@@ -3,8 +3,9 @@ import {
   mapNodes, MAP_SIZE, REGIONS, NODES_PER_REGION, STAR_CHESTS, totalStars, featureUnlocked,
   MILESTONES, WHEEL, WHEEL_ADS_PER_DAY, wheelState, dayKey, leagueSteps, tierFor, romanDiv, promotionReward, SEASON_REWARDS, seasonEndsAt, leagueIndex,
   STAT_KEYS, UPGRADE_MAX, upgradeCost, upgLevels, statEffect, fighterPower, unreadMail,
-  type MapNode, type Reward, type StatKey, type LeagueId,
+  type MapNode, type Reward, type StatKey, type LeagueId, TIERS, weekInfo, weekStats, weekPrize, PLACE_NAMES,
 } from '@nb/shared';
+import { social } from '../services/social.ts';
 import { backend } from '../services/backend.ts';
 import { ads } from '../services/ads.ts';
 import { audio } from '../game/audio.ts';
@@ -269,11 +270,44 @@ export function leagueScreen(): Screen {
       next ? h('div', { class: 'xpbar wide' }, h('div', { style: { width: `${Math.max(4, Math.min(100, ((p.rank.mmr - steps[curIdx].min) / (next.min - steps[curIdx].min)) * 100))}%` } })) : null,
       next ? h('small', { class: 'muted' }, `${tr(L('تا', 'to'))} ${isFa() ? next.tier.nameFa : next.tier.name} ${romanDiv(next.division)}: `, ltr(num(next.min - p.rank.mmr))) : null),
     h('button', { class: `btn primary big ${open ? '' : 'disabled'}`, onclick: () => import('./play.ts').then((m) => show(() => m.matchmakingScreen('ranked', '1v1'))) }, svg('trophy', 18), tr(L('بازی لیگ', 'League match'))));
+  introOnce('league-week', [
+    { target: '.week-box', title: L('لیگ هفتگی', 'Weekly league'), text: L('هر هفته شنبه ساعت ۱۵ شروع و شنبه بعد ساعت ۱۴ تمام می‌شود. هر برد لیگ ۳ امتیاز (بدون سقوط ۴) و هر باخت ۱- است. سه نفر اول هر لیگ رون، الماس و جام افتخار می‌گیرند و بعد جدول صفر می‌شود.', 'Every week runs from Saturday 15:00 to the next Saturday 14:00 (Tehran). League wins give 3 points (4 without falls), losses −1. The top 3 of each league win runes, gems and a trophy, then the table resets.') },
+  ]);
   introOnce('league', [
     { target: '.league-head', title: L('لیگ‌ها', 'Leagues'), text: L('برنزی، نقره‌ای، طلایی، کریستالی و افسانه‌ای. هر برد در بازی لیگ امتیاز می‌دهد و هر باخت کم می‌کند؛ برد پیاپی امتیاز اضافه دارد.', 'Bronze, Silver, Gold, Crystal and Legendary. League wins add points, losses remove them; win streaks add a bonus.') },
     { target: '.ladder', title: L('جایزه ارتقا', 'Promotion rewards'), text: L('اولین بار که به هر دسته برسی جایزه‌اش را اینجا بگیر. آخر فصل هم بر اساس بهترین لیگت جایزه به صندوق پیام می‌آید.', 'Claim a reward the first time you reach each division. At season end, a reward for your best league arrives in your inbox.') },
   ]);
-  return { el: h('div', { class: 'page leaguescreen' }, topBar({ back: home, title: tr(L('لیگ', 'League')) }), h('div', { class: 'scroll narrow' }, head, h('div', { class: 'two-col league-cols' }, ladder, season))) };
+  const weekly = weeklyBox();
+  return { el: h('div', { class: 'page leaguescreen' }, topBar({ back: home, title: tr(L('لیگ', 'League')) }), h('div', { class: 'scroll narrow' }, head, weekly, h('div', { class: 'two-col league-cols' }, ladder, season))), destroy: () => clearInterval((weekly as any)._t) };
+}
+
+/** Weekly race: countdown, my bracket position, podium prizes, trophy cabinet. */
+function weeklyBox(): HTMLElement {
+  const p = backend.profile;
+  const info = weekInfo(Date.now());
+  const me = weekStats(p, Date.now());
+  const tt = TIERS[me.tier];
+  const time = h('b', { dir: 'ltr' }, duration(info.inBreak ? info.toNext : info.left));
+  const pos = h('b', {}, '…');
+  const podium = h('div', { class: 'week-podium' }, [1, 2, 3].map((pl) => h('div', { class: `pod p${pl}` },
+    h('span', { class: 'pod-cup' }, svg('trophy', 22)), h('small', {}, tr(PLACE_NAMES[pl - 1])), rewardChips(weekPrize(me.tier, pl)))));
+  const box = h('div', { class: 'box week-box', style: { '--tc': tt.color } as any },
+    h('div', { class: 'row space' },
+      h('h3', {}, svg('calendar', 16), ' ', isFa() ? `لیگ هفتگی ${tt.nameFa} · هفته ${num(info.id)}` : `Weekly ${tt.name} league · week ${num(info.id)}`),
+      h('span', { class: `tag ${info.inBreak ? 'gold' : ''}` }, info.inBreak ? tr(L('اعلام نتایج — شروع هفته بعد تا', 'Results break — next week in')) : tr(L('پایان تا', 'Ends in')), ' ', time)),
+    h('div', { class: 'week-me' },
+      h('div', { class: 'stat-box' }, pos, h('span', {}, tr(L('رتبه تو', 'Your rank')))),
+      h('div', { class: 'stat-box' }, h('b', {}, num(me.pts)), h('span', {}, tr(L('امتیاز', 'Points')))),
+      h('div', { class: 'stat-box' }, h('b', { dir: 'ltr' }, `${num(me.w)} / ${num(me.l)}`), h('span', {}, tr(L('برد / باخت', 'W / L')))),
+      h('div', { class: 'stat-box' }, h('b', {}, num(p.trophies.length)), h('span', {}, tr(L('جام‌های تو', 'Your trophies'))))),
+    podium,
+    h('div', { class: 'row' },
+      h('button', { class: 'btn small accent', onclick: () => import('./meta.ts').then((m) => show(() => m.leaderboardScreen('week'))) }, svg('star', 14), tr(L('جدول این هفته', 'This week\'s table'))),
+      h('button', { class: 'btn small ghost', onclick: () => import('./meta.ts').then((m) => show(m.profileScreen)) }, svg('trophy', 14), tr(L('قفسه افتخارات', 'Trophy cabinet')))),
+    social().demo ? h('small', { class: 'muted' }, tr(L('نسخه آفلاین: بردهای مقابل کامپیوتر و نقشه برای لیگ هفتگی حساب می‌شوند و رقبا کامپیوتری‌اند.', 'Offline build: CPU and map wins count for the weekly league and rivals are computer players.'))) : null);
+  social().weekStandings().then((w) => { pos.textContent = w.myPos && (me.w + me.l) ? `#${num(w.myPos)}` : '—'; }).catch(() => { pos.textContent = '—'; });
+  (box as any)._t = window.setInterval(() => { const i = weekInfo(Date.now()); time.textContent = duration(i.inBreak ? i.toNext : i.left); }, 1000);
+  return box;
 }
 
 // =============================================================================================

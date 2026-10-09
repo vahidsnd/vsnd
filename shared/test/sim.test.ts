@@ -170,3 +170,87 @@ test('spells and upgrades work in the simulation', () => {
   for (let i = 0; i < 20; i++) step(g, [0, 0]);
   assert.ok(g.fighters[1].damage >= 16, 'nova hits with level + attack bonus: ' + g.fighters[1].damage);
 });
+
+test('weekly league: Saturday 15:00 → next Saturday 14:00 Tehran, podium prizes and trophies', async () => {
+  const L = await import('../src/index.ts');
+  const w = L.weekWindow(L.weekId(Date.UTC(2026, 9, 10, 12, 0)));
+  // 11:30 UTC = 15:00 Tehran on a Saturday, closes 10:30 UTC = 14:00 Tehran the next Saturday
+  assert.equal(new Date(w.start).getUTCDay(), 6);
+  assert.equal(new Date(w.start).getUTCHours() * 60 + new Date(w.start).getUTCMinutes(), 11 * 60 + 30);
+  assert.equal(w.end - w.start, 7 * 86400_000 - 3600_000);
+  assert.ok(L.leagueBreak(w.end + 1000) && !L.leagueBreak(w.end - 1000));
+  const now = w.start + 3600_000;
+  const ps = [0, 1, 2, 3].map((i) => L.newProfile('w' + i, 'W' + i, now));
+  ps.forEach((p, i) => { for (let k = 0; k <= i; k++) L.addWeekResult(p, true, 0, now); });
+  L.settleWeek(L.weekId(now), ps, w.end + 10);
+  assert.equal(ps[3].trophies[0].place, 1);
+  assert.equal(ps[2].trophies[0].place, 2);
+  assert.equal(ps[1].trophies[0].place, 3);
+  assert.equal(ps[0].trophies.length, 0);
+  assert.ok(ps[3].inbox[0].reward!.runes! >= 300);
+  // settling twice pays once
+  L.settleWeek(L.weekId(now), ps, w.end + 20);
+  assert.equal(ps[3].trophies.length, 1);
+});
+
+test('clan attacks: declaration rules, live fights, result', async () => {
+  const S = await import('../src/index.ts');
+  const db = S.newSocialDb();
+  const profiles: Record<string, Profile> = {};
+  let now = Date.UTC(2026, 9, 10);
+  const ctx = () => ({ db, now, rand: Math.random, profileOf: (id: string) => profiles[id] ?? null });
+  const mk = (id: string) => { const p = S.newProfile(id, id, now); p.coins = 99999; p.gems = 99999; profiles[id] = p; return p; };
+  const a = [mk('a1'), mk('a2'), mk('a3')], d = [mk('d1'), mk('d2'), mk('d3')];
+  const A = S.clanCreate(ctx(), a[0], { name: 'Attackers', tag: 'ATK', badge: 1, desc: '', type: 'open', minMmr: 0 });
+  const D = S.clanCreate(ctx(), d[0], { name: 'Defenders', tag: 'DEF', badge: 2, desc: '', type: 'open', minMmr: 0 });
+  for (const p of a.slice(1)) S.clanJoin(ctx(), p, A.id);
+  for (const p of d.slice(1)) S.clanJoin(ctx(), p, D.id);
+  // level 1 clan can't attack; new clans are protected
+  assert.throws(() => S.raidDeclare(ctx(), a[0], D.id, now + 2 * 3600_000), /raid-level/);
+  S.clanDonateGems(ctx(), a[0], 2000); S.clanUpgrade(ctx(), a[0]);
+  assert.throws(() => S.raidDeclare(ctx(), a[0], D.id, now + 2 * 3600_000), /raid-shield/);
+  now += 49 * 3600_000;
+  // must be at least one hour ahead
+  assert.throws(() => S.raidDeclare(ctx(), a[0], D.id, now + 10 * 60_000), /raid-time/);
+  // a plain member can't declare
+  assert.throws(() => S.raidDeclare(ctx(), a[1], D.id, now + 2 * 3600_000), /perm/);
+  const r = S.raidDeclare(ctx(), a[0], D.id, now + 3600_000);
+  assert.equal(r.slots.length, 3);
+  // only one outgoing raid
+  assert.throws(() => S.raidDeclare(ctx(), a[0], D.id, now + 3600_000), /raid-busy/);
+  // defenders prepare
+  S.clanDonateGems(ctx(), d[0], 500);
+  S.raidFortify(ctx(), d[0], r.id);
+  assert.equal(r.fort, 1);
+  // can't fight before it opens
+  assert.throws(() => S.raidFightStart(ctx(), a[1], r.id, 0), /raid-closed/);
+  now = r.start + 1000; S.raidTick(ctx());
+  assert.equal(r.status, 'live');
+  // an impossible report (400 s claimed 1 s after the ticket) is rejected and flagged
+  const cf = S.raidFightStart(ctx(), a[2], r.id, 2);
+  now += 1000;
+  assert.throws(() => S.raidFightEnd(ctx(), a[2], cf.id, { won: true, falls: 0, kos: 3, durationSec: 400, dmg: 300 }), /cheat/);
+  assert.ok(db.cheats!.a3.score > 0);
+  for (let slot = 0; slot < 3; slot++) {
+    const p = a[slot];
+    const f = S.raidFightStart(ctx(), p, r.id, slot);
+    now += 100_000;
+    const out = S.raidFightEnd(ctx(), p, f.id, { won: true, falls: 0, kos: 2, durationSec: 95, dmg: 300 });
+    assert.equal(out.stars, 3);
+  }
+  assert.throws(() => S.raidFightStart(ctx(), a[0], r.id, 0), /raid-cleared/);
+  now = r.end + 1; S.raidTick(ctx());
+  assert.equal(r.status, 'done');
+  assert.ok(r.result!.won);
+  assert.ok((D.rd!.shieldUntil) > now, 'defender gets a shield');
+  assert.ok(A.rd!.cdUntil > now, 'attacker gets a cooldown');
+  assert.ok(profiles.a1.inbox.some((m) => m.reward?.runes));
+});
+
+test('anti-cheat: implausible offline results add suspicion', async () => {
+  const S = await import('../src/index.ts');
+  const chk = S.checkSummary({ matchId: 'x', mode: 'cpu', won: true, placement: 1, players: 2, kos: 9, falls: 0, dmg: 900, smashKOs: 0, maxCombo: 3, fighter: 'blaze', durationSec: 5 }, { foes: 1, stocks: 3, recentPerHour: 3 });
+  assert.ok(chk.pts >= 10, chk.reasons.join());
+  const ok = S.checkSummary({ matchId: 'y', mode: 'cpu', won: true, placement: 1, players: 2, kos: 3, falls: 1, dmg: 320, smashKOs: 1, maxCombo: 4, fighter: 'blaze', durationSec: 140 }, { foes: 1, stocks: 3, recentPerHour: 3 });
+  assert.equal(ok.pts, 0);
+});

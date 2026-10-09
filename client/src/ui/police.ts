@@ -22,6 +22,8 @@ const L = {
   promos: { fa: 'کد هدیه', en: 'Promo codes' },
   staff: { fa: 'کادر', en: 'Staff' },
   log: { fa: 'سابقه', en: 'Log' },
+  cheats: { fa: 'ضد تقلب', en: 'Anti-cheat' },
+  pardon: { fa: 'بخشش', en: 'Pardon' },
   noReports: { fa: 'گزارش بازی وجود ندارد 👌', en: 'No open reports 👌' },
   reporter: { fa: 'گزارش‌دهنده', en: 'Reporter' },
   target: { fa: 'متخلف', en: 'Target' },
@@ -92,14 +94,14 @@ const REASON: Record<string, LL> = {
   name: { fa: 'نام نامناسب', en: 'Offensive name' }, other: { fa: 'سایر', en: 'Other' },
 };
 const ACTION: Record<string, LL> = {
-  mute: L.mute, unmute: L.unmute, ban: L.ban, unban: L.unban, warn: L.warn, delete: L.delete, dismiss: L.dismiss, rename: L.rename, promo: L.promos,
+  pardon: L.pardon, mute: L.mute, unmute: L.unmute, ban: L.ban, unban: L.unban, warn: L.warn, delete: L.delete, dismiss: L.dismiss, rename: L.rename, promo: L.promos,
   'role:mod': L.mod, 'role:admin': L.admin, 'role:none': { fa: 'حذف نقش', en: 'Role removed' },
 };
 const pick = (l?: LL, fb = '') => (l ? (isFa() ? l.fa : l.en) : fb);
 
 type View = Awaited<ReturnType<ReturnType<typeof social>['police']>>;
-type Tab = 'reports' | 'players' | 'sanctions' | 'promos' | 'staff' | 'log';
-const TAB_ICON: Record<Tab, string> = { reports: 'flag', players: 'search', sanctions: 'lock', promos: 'ticket', staff: 'shield', log: 'history' };
+type Tab = 'reports' | 'players' | 'cheats' | 'sanctions' | 'promos' | 'staff' | 'log';
+const TAB_ICON: Record<Tab, string> = { cheats: 'zap', reports: 'flag', players: 'search', sanctions: 'lock', promos: 'ticket', staff: 'shield', log: 'history' };
 
 /** Readable one-line summary of a reward. */
 export function rewardText(r: Reward): string {
@@ -163,7 +165,7 @@ export function policeScreen(): Screen {
 
   function render() {
     if (!alive || !v) return;
-    const tabs: Tab[] = ['reports', 'players', 'sanctions', ...(admin() ? ['promos', 'staff'] as Tab[] : []), 'log'];
+    const tabs: Tab[] = ['reports', 'players', 'cheats', 'sanctions', ...(admin() ? ['promos', 'staff'] as Tab[] : []), 'log'];
     if (!tabs.includes(tab)) tab = 'reports';
     tabsEl.innerHTML = '';
     for (const t of tabs) {
@@ -185,6 +187,7 @@ export function policeScreen(): Screen {
       case 'promos': return promosPane(v);
       case 'staff': return staffPane(v);
       case 'log': return logPane(v);
+      case 'cheats': return cheatsPane(v);
     }
   }
 
@@ -344,6 +347,20 @@ export function policeScreen(): Screen {
   }
 
   // ---- log ---------------------------------------------------------------------------------------
+  function cheatsPane(v: View) {
+    const list = (v as any).cheats as { id: string; name: string; score: number; flags: { t: number; kind: string; detail: string; pts: number }[] }[] | undefined;
+    const intro = h('p', { class: 'muted small' }, isFa()
+      ? 'بازی‌های آنلاین روی سرور اجرا می‌شوند و قابل تقلب نیستند. نتیجه‌هایی که خود گوشی گزارش می‌کند (کامپیوتر، نقشه، نبرد حمله قبیله) بررسی می‌شوند: زمان غیرممکن، آسیب یا ناک‌اوت بیش از حد، نبرد سریع‌تر از زمان واقعی، ورودی سریع‌تر از واقعیت و درخواست‌های انبوه. با امتیاز ۱۰، جایزه‌های آفلاین متوقف و بازیکن به پلیس گزارش می‌شود؛ امتیاز با گذشت زمان کم می‌شود.'
+      : 'Online matches run on the server and can\'t be cheated. Results the phone reports (CPU, map, raid fights) are checked: impossible times, too much damage or KOs, fights shorter than real time, inputs faster than real time and request floods. At 10 points offline rewards stop and the player is reported to the police; the score decays over time.');
+    if (!list?.length) return h('div', {}, intro, h('div', { class: 'police-empty muted' }, svg('check', 28), isFa() ? 'مورد مشکوکی نیست' : 'Nothing suspicious'));
+    return h('div', { class: 'box' }, intro, list.map((c) => h('div', { class: 'police-report' },
+      h('div', { class: 'row space' }, h('b', {}, c.name, h('small', { class: 'muted', dir: 'ltr' }, ` ${c.id}`)), h('span', { class: `tag ${c.score >= 10 ? 'gold' : ''}` }, `${isFa() ? 'امتیاز تقلب' : 'score'} ${num(Math.round(c.score * 10) / 10)}`)),
+      c.flags.slice(0, 5).map((f) => h('div', { class: 'muted small', dir: 'ltr', style: { textAlign: 'start' } }, `${f.kind} +${f.pts} · ${f.detail} · `, h('span', { dir: 'auto' }, ago(f.t)))),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn small ghost', onclick: () => act({ action: 'pardon', target: c.id }) }, svg('check', 13), tr('pardon')),
+        h('button', { class: 'btn small primary', onclick: () => act({ action: 'ban', target: c.id, note: 'cheating' }) }, svg('lock', 13), tr('ban'))))));
+  }
+
   function logPane(v: View) {
     if (!v.log.length) return h('div', { class: 'police-empty muted' }, tr('noLog'));
     return h('div', { class: 'box clan-log' }, v.log.map((l: PoliceView['log'][number]) => h('div', { class: 'police-logrow' },

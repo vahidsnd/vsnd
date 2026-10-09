@@ -57,6 +57,17 @@ export interface Clan {
   war: ClanWar | null; warLog: WarLog[]; warWins: number; searching: boolean;
   log: { t: number; en: string; fa: string }[];
   bot?: boolean;
+  /** clan attacks (see raid.ts); optional for older saves */
+  rd?: ClanRaidState;
+}
+export interface ClanRaidState {
+  banners: number; bannerAt: number;      // war banners regenerate one per day
+  shieldUntil: number;                    // no one can declare on this clan before this
+  cdUntil: number;                        // this clan can't declare before this
+  hits: Record<string, number>;           // target clan id -> last attack time
+  out: string | null; in: string | null;  // active raid ids
+  trophies: number;                       // clan trophies (raid wins/losses)
+  log: { t: number; raid: string; vsName: string; vsTag: string; attacker: boolean; our: number; max: number; won: boolean }[];
 }
 export interface ChatMsg { id: string; ch: string; uid: string; name: string; tag?: string; role?: ClanRole; lvl?: number; text: string; t: number; sys?: boolean }
 export interface Report {
@@ -80,13 +91,17 @@ export interface SocialDb {
   modlog: { t: number; by: string; action: string; target: string; note?: string }[];
   seq: number;
   rate?: Record<string, { t: number; last: string; rep: number }>;
+  raids?: Record<string, import('./raid.ts').Raid>;
+  fights?: Record<string, import('./raid.ts').RaidFight>;
+  cheats?: Record<string, import('./anticheat.ts').CheatRecord>;
+  weekSettled?: number;
 }
 export function newSocialDb(): SocialDb {
   return { clans: {}, userClan: {}, chats: {}, reports: [], mutes: {}, bans: {}, warns: {}, promos: {}, redeemed: {}, roles: {}, warQueue: [], modlog: [], seq: 1 };
 }
 
 export class SocialError extends Error { constructor(public code: string) { super(code); } }
-const fail = (code: string): never => { throw new SocialError(code); };
+export const fail = (code: string): never => { throw new SocialError(code); };
 
 export interface SocialCtx {
   db: SocialDb;
@@ -98,15 +113,15 @@ export interface SocialCtx {
   warMs?: number;
 }
 
-const uid = (ctx: SocialCtx, prefix: string) => `${prefix}${(ctx.db.seq++).toString(36)}${Math.floor(ctx.rand() * 1e5).toString(36)}`;
+export const uid = (ctx: SocialCtx, prefix: string) => `${prefix}${(ctx.db.seq++).toString(36)}${Math.floor(ctx.rand() * 1e5).toString(36)}`;
 
 // ---- helpers -----------------------------------------------------------------------------------
 export function clanOf(db: SocialDb, userId: string): Clan | null {
   const id = db.userClan[userId];
   return (id && db.clans[id]) || null;
 }
-function memberOf(c: Clan, userId: string) { return c.members.find((m) => m.id === userId) ?? null; }
-function myClan(ctx: SocialCtx, p: Profile, minRole: ClanRole = 'member') {
+export function memberOf(c: Clan, userId: string) { return c.members.find((m) => m.id === userId) ?? null; }
+export function myClan(ctx: SocialCtx, p: Profile, minRole: ClanRole = 'member') {
   const c = clanOf(ctx.db, p.id) ?? fail('no-clan');
   const m = memberOf(c, p.id) ?? fail('no-clan');
   if (ROLE_RANK[m.role] < ROLE_RANK[minRole]) fail('perm');
@@ -118,11 +133,11 @@ function clanRef(c: Clan, role: ClanRole): ClanRef { return { id: c.id, name: c.
 function syncProfiles(ctx: SocialCtx, c: Clan) {
   for (const m of c.members) { const pr = ctx.profileOf(m.id); if (pr) pr.clan = clanRef(c, m.role); }
 }
-function clanLog(c: Clan, en: string, fa: string, now: number) {
+export function clanLog(c: Clan, en: string, fa: string, now: number) {
   c.log.unshift({ t: now, en, fa });
   if (c.log.length > 30) c.log.length = 30;
 }
-function sysMsg(ctx: SocialCtx, ch: string, text: string) {
+export function sysMsg(ctx: SocialCtx, ch: string, text: string) {
   pushMsg(ctx, { id: uid(ctx, 'c'), ch, uid: 'sys', name: 'System', text, t: ctx.now, sys: true });
 }
 function memberFromProfile(p: Profile, role: ClanRole, now: number): ClanMember {
@@ -508,8 +523,32 @@ export function clanView(db: SocialDb, c: Clan, viewer: string, isOnline: (id: s
 }
 export type ClanView = ReturnType<typeof clanView>;
 
+/** Clan ranking score: raid trophies + war wins + member strength. */
+export function clanScore(c: Clan) { return (c.rd?.trophies ?? 0) * 3 + c.warWins * 40 + Math.round(clanPower(c) / 20); }
 export function clanLeaderboard(db: SocialDb, limit = 50) {
-  return Object.values(db.clans).sort((a, b) => clanPower(b) - clanPower(a) || b.warWins - a.warWins).slice(0, limit).map((c, i) => ({ pos: i + 1, ...clanSummary(c) }));
+  return Object.values(db.clans).sort((a, b) => clanScore(b) - clanScore(a) || b.warWins - a.warWins).slice(0, limit)
+    .map((c, i) => ({ pos: i + 1, ...clanSummary(c), score: clanScore(c), trophies: c.rd?.trophies ?? 0 }));
+}
+/** Alliances = groups of clans connected by alliance links; ranked by their combined score. */
+export function allianceLeaderboard(db: SocialDb, limit = 30) {
+  const seen = new Set<string>();
+  const out: { pos: number; name: string; tags: string[]; clans: number; members: number; score: number; lead: string; ids: string[] }[] = [];
+  for (const c of Object.values(db.clans)) {
+    if (seen.has(c.id) || !c.allies.length) continue;
+    const group: Clan[] = [];
+    const stack = [c.id];
+    while (stack.length) {
+      const id = stack.pop()!;
+      if (seen.has(id)) continue;
+      const x = db.clans[id]; if (!x) continue;
+      seen.add(id); group.push(x);
+      stack.push(...x.allies);
+    }
+    if (group.length < 2) continue;
+    group.sort((a, b) => clanScore(b) - clanScore(a));
+    out.push({ pos: 0, name: group[0].name, lead: group[0].tag, tags: group.map((g) => g.tag), clans: group.length, members: group.reduce((a, g) => a + g.members.length, 0), score: group.reduce((a, g) => a + clanScore(g), 0), ids: group.map((g) => g.id) });
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, limit).map((x, i) => ({ ...x, pos: i + 1 }));
 }
 
 // ---- chat -------------------------------------------------------------------------------------------
@@ -634,7 +673,7 @@ function modLog(ctx: SocialCtx, by: string, action: string, target: string, note
   ctx.db.modlog.unshift({ t: ctx.now, by, action, target, note });
   if (ctx.db.modlog.length > 300) ctx.db.modlog.length = 300;
 }
-export type ModAction = 'mute' | 'unmute' | 'ban' | 'unban' | 'warn' | 'delete' | 'dismiss' | 'rename';
+export type ModAction = 'mute' | 'unmute' | 'ban' | 'unban' | 'warn' | 'delete' | 'dismiss' | 'rename' | 'pardon';
 export function moderate(ctx: SocialCtx, p: Profile, inp: { action: ModAction; target: string; minutes?: number; msgId?: string; reportId?: string; note?: string }) {
   needStaff(ctx, p);
   const t = inp.target;
@@ -659,6 +698,7 @@ export function moderate(ctx: SocialCtx, p: Profile, inp: { action: ModAction; t
       break;
     }
     case 'dismiss': break;
+    case 'pardon': if (ctx.db.cheats) delete ctx.db.cheats[t]; break;
     default: fail('bad-input');
   }
   if (inp.reportId || inp.action !== 'delete') {
@@ -683,6 +723,7 @@ export function policeView(ctx: SocialCtx, p: Profile) {
     log: ctx.db.modlog.slice(0, 60),
     promos: staffRole(ctx.db, p.id) === 'admin' ? Object.values(ctx.db.promos) : [],
     staff: Object.entries(ctx.db.roles).map(([id, role]) => ({ id, role })),
+    cheats: Object.entries(ctx.db.cheats ?? {}).filter(([, r]) => r.score >= 1).sort((a, b) => b[1].score - a[1].score).slice(0, 50).map(([id, r]) => ({ id, ...r })),
   };
 }
 export type PoliceView = ReturnType<typeof policeView>;

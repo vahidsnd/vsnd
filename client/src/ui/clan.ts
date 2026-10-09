@@ -430,7 +430,9 @@ export function clanScreen(): Screen {
           v.war ? h('span', { class: 'tag clan-atwar' }, svg('flame', 12), tr('war')) : null,
         ),
       ),
-      h('button', { class: 'btn small accent clan-chatbtn', 'data-t': 'chat', onclick: () => openChat('clan') }, svg('chat', 16), h('span', { class: 'lbl' }, tr('chat'))),
+      h('div', { class: 'row clan-headbtns' },
+        h('button', { class: 'btn small primary clan-raidbtn', 'data-t': 'raid', onclick: () => import('./raid.ts').then((m) => show(m.raidScreen)) }, svg('swords', 16), h('span', { class: 'lbl' }, isFa() ? 'حمله' : 'Attack')),
+        h('button', { class: 'btn small accent clan-chatbtn', 'data-t': 'chat', onclick: () => openChat('clan') }, svg('chat', 16), h('span', { class: 'lbl' }, tr('chat')))),
     );
   }
 

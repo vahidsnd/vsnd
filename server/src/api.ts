@@ -3,16 +3,17 @@ import {
   applyMatch, buyItem, claimAchievement, completeTutorial, claimFreeCrate, claimLogin, claimPass, claimQuest, doubleLastReward, getFighter,
   grantIap, IAP_PRODUCTS, MAX_REWARDED_ADS_PER_DAY, rerollQuest, dayKey, type MatchSummary,
   claimLeague, claimMail, claimMilestone, claimStarChest, clearMapNode, equipSpell, learnSpell, spinWheel, upgradeSpell, upgradeStat,
-  collectDonations, MAP_SIZE,
+  collectDonations, MAP_SIZE, checkSummary, flagCheat, rewardsWithheld, RateLimiter,
 } from '@nb/shared';
 import { HttpError, need, socialRoutes } from './social.ts';
 import { socialCtx } from './db.ts';
 import { config } from './config.ts';
-import { createGuest, isPurchaseTokenUsed, leaderboard, markDirty, markPurchaseToken, sanitizeName, userByToken, type UserRec } from './db.ts';
+import { winsLeaderboard, createGuest, isPurchaseTokenUsed, leaderboard, markDirty, markPurchaseToken, sanitizeName, userByToken, type UserRec } from './db.ts';
 import { verifyGooglePlay } from './billing/googleplay.ts';
 import { verifyMyket } from './billing/myket.ts';
 
 type Handler = (body: any, user: UserRec | null) => Promise<unknown> | unknown;
+const apiLimit = new RateLimiter(180), redeemLimit = new RateLimiter(6), reportLimit = new RateLimiter(10);
 
 const routes: Record<string, Handler> = {
   'POST /api/guest': (b) => {
@@ -116,6 +117,8 @@ const routes: Record<string, Handler> = {
     if (!s || (s.mode !== 'cpu' && s.mode !== 'map')) throw new HttpError(400, 'bad-summary');
     const today = dayKey(Date.now());
     if (!rec.cpu || rec.cpu.day !== today) rec.cpu = { day: today, count: 0 };
+    rec.recent = (rec.recent ?? []).filter((t) => Date.now() - t < 3600_000);
+    rec.recent.push(Date.now());
     const clean: MatchSummary = {
       matchId: String(s.matchId).slice(0, 40), mode: s.mode, won: !!s.won,
       placement: clamp(s.placement, 1, 4), players: clamp(s.players, 2, 4),
@@ -123,6 +126,11 @@ const routes: Record<string, Handler> = {
       smashKOs: clamp(s.smashKOs, 0, 12), maxCombo: clamp(s.maxCombo, 0, 20),
       fighter: String(s.fighter), durationSec: clamp(s.durationSec, 0, 900),
     };
+    // anti-cheat: plausibility of the reported result
+    const sc = socialCtx();
+    const chk = checkSummary(clean, { foes: Math.max(1, clean.players - 1), stocks: 3, recentPerHour: rec.recent.length });
+    if (chk.pts) flagCheat(sc, p, 'offline', chk.reasons.join('; '), chk.pts);
+    if (rewardsWithheld(sc, p)) { markDirty(); return { reward: null, map: null, withheld: true, profile: p }; }
     // map progress is never capped (it's finite); only the per-match coins are
     const map = s.mode === 'map' && Number.isInteger(b.node) && b.node >= 0 && b.node < MAP_SIZE
       ? clearMapNode(p, b.node, clean.won, clean.falls) : null;
@@ -161,6 +169,7 @@ const routes: Record<string, Handler> = {
     return { reward, profile: p };
   },
   'GET /api/leaderboard': () => ({ top: leaderboard(100) }),
+  'GET /api/leaderboard/wins': () => ({ top: winsLeaderboard(100) }),
   'GET /api/health': () => ({ ok: true }),
   ...socialRoutes,
 };
@@ -188,6 +197,10 @@ export async function handleApi(req: http.IncomingMessage, res: http.ServerRespo
   const handler = routes[`${req.method} ${url.pathname}`];
   if (!handler) return false;
   try {
+    // flood protection per player (or per IP before login)
+    const who = (req.headers.authorization ?? '').slice(-24) || req.socket.remoteAddress || '?';
+    const strict = url.pathname === '/api/redeem' ? redeemLimit : url.pathname === '/api/report' ? reportLimit : null;
+    if (!apiLimit.take(who) || (strict && !strict.take(who))) throw new HttpError(429, 'rate');
     if (url.pathname.startsWith('/api/admin/') && (!config.adminKey || req.headers['x-admin-key'] !== config.adminKey)) throw new HttpError(403, 'admin');
     const body = req.method === 'POST' ? await readJson(req) : {};
     const token = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');

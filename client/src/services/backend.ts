@@ -2,7 +2,7 @@ import {
   applyMatch, buyItem, claimAchievement, completeTutorial, migrateProfile, claimFreeCrate, claimLogin, claimPass, claimQuest, doubleLastReward, getFighter, grantIap,
   newProfile, refreshDaily, rerollQuest,
   claimLeague, claimMail, claimMilestone, claimStarChest, clearMapNode, dayKey, equipSpell, learnSpell, spinWheel, upgradeSpell, upgradeStat,
-  type Granted, type MapClear, type StatKey,
+  type Granted, type MapClear, type StatKey, addWeekResult, profileSeal,
   type BuyResult, type CrateResult, type MatchSummary, type PassReward, type Profile, type Quest, type RewardResult,
 } from '@nb/shared';
 import { serverHttp, store } from './platform.ts';
@@ -21,7 +21,13 @@ class Backend {
   private listeners = new Set<Listener>();
 
   onChange(fn: Listener) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
-  private set(p: Profile) { migrateProfile(p); this.profile = p; if (!this.online) store.set('profile', p); this.listeners.forEach((l) => l(p)); }
+  private set(p: Profile) {
+    migrateProfile(p); this.profile = p;
+    if (!this.online) { const json = JSON.stringify(p); store.set('profile', p); store.set('seal', profileSeal(json)); }
+    this.listeners.forEach((l) => l(p));
+  }
+  /** offline profile edited outside the game (anti-tamper seal mismatch) */
+  tampered = false;
 
   async init(): Promise<void> {
     try {
@@ -37,7 +43,14 @@ class Backend {
     } catch (e) {
       if ((e as Error).message === 'auth') { this.token = ''; store.set('token', ''); return this.init(); }
       this.online = false;
-      const p = store.get<Profile | null>('profile', null) ?? newProfile('local', 'Player' + Math.floor(1000 + Math.random() * 9000));
+      const saved = store.get<Profile | null>('profile', null);
+      const seal = store.get<string>('seal', '');
+      if (saved && seal && profileSeal(JSON.stringify(saved)) !== seal) {
+        // edited by hand: currencies are not trusted, keep progress but reset the wallet
+        this.tampered = true;
+        saved.coins = Math.min(saved.coins, 500); saved.gems = Math.min(saved.gems, 30); saved.runes = Math.min(saved.runes ?? 0, 0);
+      }
+      const p = saved ?? newProfile('local', 'Player' + Math.floor(1000 + Math.random() * 9000));
       refreshDaily(p);
       this.set(p);
     }
@@ -102,12 +115,12 @@ class Backend {
     return this.run('/api/iap/verify', { market, productId, purchaseToken }, (p) => grantIap(p, productId), (j) => !!j.ok);
   }
   reportCpu(summary: MatchSummary) {
-    return this.run('/api/match/offline', { summary }, (p) => applyMatch(p, summary), (j) => j.reward as RewardResult | null);
+    return this.run('/api/match/offline', { summary }, (p) => { addWeekResult(p, summary.won, summary.falls, Date.now()); return applyMatch(p, summary); }, (j) => j.reward as RewardResult | null);
   }
   /** world-map match: normal match rewards + stars / first-clear reward */
   reportMap(node: number, summary: MatchSummary) {
     return this.run('/api/match/offline', { summary, node },
-      (p) => ({ reward: applyMatch(p, summary), map: clearMapNode(p, node, summary.won, summary.falls) }),
+      (p) => { addWeekResult(p, summary.won, summary.falls, Date.now()); return { reward: applyMatch(p, summary), map: clearMapNode(p, node, summary.won, summary.falls) }; },
       (j) => ({ reward: j.reward as RewardResult | null, map: j.map as MapClear | null }));
   }
   claimStarChest(idx: number) { return this.run('/api/map/chest', { idx }, (p) => claimStarChest(p, idx), (j) => j.granted as Granted | null); }

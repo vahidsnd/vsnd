@@ -1,6 +1,6 @@
 import {
   FIGHTERS, STAGES, getFighter, placements, TICK_RATE, COUNTDOWN, SPELLS, fighterMods, mapNodes, stageUnlocked, MAP_SIZE, getStage, getSpell,
-  type GameState, type MapClear, type FighterMods, type MatchConfig, type MatchEndInfo, type QueueFormat, type RewardResult, type RoomInfo, type ServerMsg,
+  type GameState, type MapClear, type FighterMods, type RaidFight, raidStars, type MatchConfig, type MatchEndInfo, type QueueFormat, type RewardResult, type RoomInfo, type ServerMsg,
 } from '@nb/shared';
 import { backend } from '../services/backend.ts';
 import { ads } from '../services/ads.ts';
@@ -256,6 +256,37 @@ export function startMapNode(i: number) {
     },
   }));
   if (i === 0) introOnce('map-fight', [{ title: { fa: 'اولین نبرد نقشه', en: 'First map battle' }, text: { fa: 'حریف را از صحنه بیرون بینداز. بدون سقوط ببری ۳ ستاره می‌گیری!', en: 'Knock your foe off the stage. Win without falling for 3 stars!' } }], session);
+}
+
+/** A clan-attack fight: 1v1 against a defender's fighter (AI with their upgrades + fortification). */
+export function startRaidFight(f: RaidFight, after: () => void) {
+  const p = backend.profile;
+  const fighter = p.selFighter;
+  const cfg: MatchConfig = {
+    stageId: f.stage, stocks: 2, timeLimit: 180, teams: false,
+    players: [
+      { charId: fighter, skin: backend.selectedSkin(fighter), team: 0, name: p.name, mods: fighterMods(p, fighter) },
+      { charId: f.foe.charId, skin: f.foe.skin, team: 1, name: f.foe.name, bot: true, mods: f.foe.mods },
+    ],
+  };
+  const session = new LocalSession(cfg, [playerSource(true), null], [null, f.foe.lv]);
+  show(() => gameScreen(session, {
+    online: false,
+    onLocalEnd: async (state) => {
+      const me = state.fighters[0], foe = state.fighters[1];
+      const res = { won: state.winnerTeam === me.team, falls: me.stats.falls, kos: me.stats.kos, durationSec: Math.max(0, state.endFrame - COUNTDOWN) / TICK_RATE, dmg: me.stats.dmgDealt };
+      void foe;
+      let stars = 0;
+      try { stars = (await social().raidReport(f.id, res)).stars; } catch (e) { toast(isFa() ? 'نتیجه ثبت نشد' : 'Result not accepted', 'err'); console.warn(e); }
+      const m = modal(h('div', { class: 'raid-result' },
+        h('h2', { class: 'title-grad' }, res.won ? (isFa() ? 'پیروزی!' : 'Victory!') : (isFa() ? 'شکست' : 'Defeat')),
+        h('span', { class: 'stars big' }, [1, 2, 3].map((k) => h('i', { class: k <= stars ? 'on' : '' }))),
+        h('small', { class: 'muted' }, isFa() ? 'برد = ۱ ستاره · بدون سقوط +۱ · زیر ۲ دقیقه +۱' : 'Win = 1 star · no falls +1 · under 2 minutes +1'),
+        h('button', { class: 'btn primary big', onclick: () => { m.close(); } }, isFa() ? 'برگشت به حمله' : 'Back to the raid'),
+      ), { onClose: after });
+      void raidStars;
+    },
+  }));
 }
 
 export function startTraining() {

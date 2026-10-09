@@ -90,6 +90,8 @@ export function migrateProgress(p: Profile): Profile {
   p.inbox ??= [];
   p.wheel ??= { day: '', free: false, ads: 0 };
   p.clan ??= null;
+  p.trophies ??= [];
+  p.stats.leagueWins ??= 0;
   p.daily.fights ??= 0;
   p.daily.ms ??= [];
   p.daily.cardReq ??= 0;

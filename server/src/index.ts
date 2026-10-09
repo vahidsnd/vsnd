@@ -2,7 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { PROTOCOL_VERSION, featureUnlocked, type ClientMsg } from '@nb/shared';
+import { PROTOCOL_VERSION, featureUnlocked, leagueBreak, type ClientMsg } from '@nb/shared';
 import { config } from './config.ts';
 import { loadDb, userByToken, type UserRec } from './db.ts';
 import { handleApi } from './api.ts';
@@ -53,6 +53,7 @@ wss.on('connection', (ws) => {
       case 'queue':
         if (inMatch(user)) return;
         if (!config.unlockAll && !featureUnlocked(user.profile, msg.mode === 'ranked' ? 'ranked' : 'online')) return send(ws, { t: 'error', msg: 'locked' });
+        if (msg.mode === 'ranked' && leagueBreak(Date.now())) return send(ws, { t: 'error', msg: 'league-break' });
         enqueue({ user, ws, mode: msg.mode === 'ranked' ? 'ranked' : 'casual', format: ['1v1', '2v2', 'ffa'].includes(msg.format) ? msg.format : '1v1', fighter: String(msg.fighter), skin: Number(msg.skin) | 0 });
         break;
       case 'cancel': dequeue(user); break;

@@ -4,9 +4,11 @@ import {
   clanUpgradeCost, dmThreads, featureUnlocked, isMuted, matchWars, moderate, policeView, promoCreate, promoToggle, redeemCode,
   reportPlayer, ROLE_RANK, setStaff, SocialError, staffRole, warCancel, warScore, warSearch, warTick, warVsBot,
   clanView as clanViewShared, type Clan, type FeatureId, type Profile,
+  raidDeclare, raidFightEnd, raidFightStart, raidFortify, raidHelp, raidSetLineup, raidTargets, raidTick, raidView, raidWithdraw,
+  allianceLeaderboard, settleWeek, weekId, weekWindow, weekStats, rankWeek, leagueBreak, type FightResult,
 } from '@nb/shared';
 import { config } from './config.ts';
-import { markDirty, socialCtx, socialDb, userById, type UserRec } from './db.ts';
+import { allProfiles, markDirty, socialCtx, socialDb, userById, type UserRec } from './db.ts';
 import { deliverChat, isOnline, notifyClan, sendTo } from './sockets.ts';
 
 export class HttpError extends Error { constructor(public code: number, msg: string) { super(msg); } }
@@ -92,6 +94,37 @@ export const socialRoutes: Record<string, Handler> = {
   'POST /api/clan/war/search': (_b, u) => { const r = need(u); gate(r.profile, 'clanwar'); run(() => warSearch(ctx(), r.profile)); return after(r); },
   'POST /api/clan/war/cancel': (_b, u) => { const r = need(u); run(() => warCancel(ctx(), r.profile)); return after(r); },
   'GET /api/clan/leaderboard': () => ({ top: clanLeaderboard(socialDb(), 50) }),
+  'GET /api/alliance/leaderboard': () => ({ top: allianceLeaderboard(socialDb(), 30) }),
+  'GET /api/league/week': (_b, u) => {
+    const r = need(u); const now = Date.now();
+    const me = weekStats(r.profile, now);
+    const rows = allProfiles().filter((p) => p.lweek?.id === me.id && p.lweek.tier === me.tier && p.lweek.w + p.lweek.l > 0)
+      .map((p) => ({ id: p.id, name: p.name, pts: p.lweek!.pts, w: p.lweek!.w, l: p.lweek!.l, t: p.lweek!.t, tier: me.tier }));
+    const ranked = rankWeek(rows);
+    return { week: me.id, tier: me.tier, top: ranked.slice(0, 50), myPos: ranked.findIndex((x) => x.id === r.profile.id) + 1, me };
+  },
+
+  // ---- clan attacks ----
+  'GET /api/raid': (_b, u) => { const r = need(u); const c = clanOf(socialDb(), r.profile.id); if (!c) throw new HttpError(400, 'no-clan'); return { raid: raidView(ctx(), c) }; },
+  'POST /api/raid/targets': (b, u) => { const r = need(u); return { targets: run(() => raidTargets(ctx(), r.profile, String(b.q ?? ''))) }; },
+  'POST /api/raid/declare': (b, u) => {
+    const r = need(u); gate(r.profile, 'clanwar');
+    const raid = run(() => raidDeclare(ctx(), r.profile, String(b.target), Number(b.start)));
+    notifyClan(raid.att, 'raid'); notifyClan(raid.def, 'raid');
+    return { raid };
+  },
+  'POST /api/raid/withdraw': (_b, u) => { const r = need(u); const raid = run(() => raidWithdraw(ctx(), r.profile)); notifyClan(raid.att, 'raid'); notifyClan(raid.def, 'raid'); return { raid }; },
+  'POST /api/raid/lineup': (b, u) => { const r = need(u); const raid = run(() => raidSetLineup(ctx(), r.profile, String(b.raid), Array.isArray(b.uids) ? b.uids.map(String) : [])); notifyClan(raid.def, 'raid'); return { raid }; },
+  'POST /api/raid/fortify': (b, u) => { const r = need(u); const raid = run(() => raidFortify(ctx(), r.profile, String(b.raid))); notifyClan(raid.def, 'raid'); return { raid }; },
+  'POST /api/raid/help': (b, u) => { const r = need(u); const raid = run(() => raidHelp(ctx(), r.profile, String(b.raid))); notifyClan(raid.def, 'raid'); return { raid }; },
+  'POST /api/raid/fight': (b, u) => { const r = need(u); return { fight: run(() => raidFightStart(ctx(), r.profile, String(b.raid), Number(b.slot))) }; },
+  'POST /api/raid/report': (b, u) => {
+    const r = need(u);
+    const res: FightResult = { won: !!b.won, falls: clampN(b.falls, 0, 9), kos: clampN(b.kos, 0, 9), durationSec: clampN(b.durationSec, 0, 1200), dmg: clampN(b.dmg, 0, 3000) };
+    const out = run(() => raidFightEnd(ctx(), r.profile, String(b.fight), res));
+    notifyClan(out.raid.att, 'raid'); notifyClan(out.raid.def, 'raid');
+    return out;
+  },
 
   // ---- chat ----
   'POST /api/chat/history': (b, u) => {
@@ -162,5 +195,22 @@ export function socialTick() {
   const before = Object.values(c.db.clans).filter((x) => x.war).length;
   warTick(c);
   if (Object.values(c.db.clans).filter((x) => x.war).length !== before) markDirty();
+  // clan attacks: declared → live → done
+  const live = Object.values(c.db.raids ?? {}).map((r) => r.status).join();
+  raidTick(c);
+  if (Object.values(c.db.raids ?? {}).map((r) => r.status).join() !== live) for (const r of Object.values(c.db.raids ?? {})) { notifyClan(r.att, 'raid'); notifyClan(r.def, 'raid'); }
+  // weekly league: settle every week whose play window has closed (Saturday 14:00 Tehran)
+  const cur = weekId(c.now);
+  let settled: number = c.db.weekSettled ?? cur - 1;
+  while (settled < cur && c.now >= weekWindow(settled + 1).end) {
+    const w: number = settled + 1;
+    settled = w;
+    const podiums = settleWeek(w, allProfiles(), c.now);
+    console.log(`[league] week ${w} settled`, JSON.stringify(podiums));
+  }
+  c.db.weekSettled = settled;
+  void leagueBreak;
   markDirty();
 }
+
+function clampN(v: unknown, lo: number, hi: number) { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : lo; }

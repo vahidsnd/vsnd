@@ -40,7 +40,7 @@ export interface Profile {
   noAds: boolean;
   payer: boolean;
   rank: { mmr: number; peak: number; wins: number; losses: number; season: number; streak: number };
-  stats: { matches: number; wins: number; kos: number; falls: number; dmg: number; online: number; bestCombo: number; flawless: number };
+  stats: { matches: number; wins: number; kos: number; falls: number; dmg: number; online: number; bestCombo: number; flawless: number; leagueWins?: number };
   fstats: Record<string, { m: number; w: number }>;
   history: HistoryEntry[];
   ach: string[];          // claimed achievement ids
@@ -62,6 +62,8 @@ export interface Profile {
   inbox: Mail[];
   wheel: { day: string; free: boolean; ads: number };
   clan: ClanRef | null;
+  lweek?: import('./league.ts').WeekStats;
+  trophies: import('./league.ts').Trophy[];
   /** test builds only: unlock every feature locally */
   dev?: boolean;
 }
@@ -207,7 +209,7 @@ export function newProfile(id: string, name: string, now = Date.now()): Profile 
     runes: 0, cards: {}, upg: {}, spells: { nova: 1 }, equip: {},
     map: { cleared: 0, stars: [], chests: [] },
     league: { season: currentSeason(now), best: 0, claimed: [] },
-    inbox: [], wheel: { day: '', free: false, ads: 0 }, clan: null,
+    inbox: [], wheel: { day: '', free: false, ads: 0 }, clan: null, trophies: [],
   };
   refreshDaily(p, now);
   return p;

@@ -5,6 +5,9 @@ import {
   SocialError, warCancel, warReport, warSearch, warTick, warVsBot,
   type ChatMsg, type ClanInput, type ClanMember, type ClanRole, type ClanSummary, type ClanView, type Granted, type ModAction,
   type PoliceView, type Profile, type SocialCtx, type SocialDb, type StaffRole, type Clan,
+  raidDeclare, raidFightEnd, raidFightStart, raidFortify, raidHelp, raidSetLineup, raidTargets, raidTick, raidView, raidWithdraw, raidState, raidOf, RAID,
+  allianceLeaderboard, weekId, weekWindow, weekStats, rankWeek, demoRivals, awardWeek,
+  type Raid, type RaidFight, type RaidView, type FightResult, type WeekEntry, type WeekStats,
 } from '@nb/shared';
 import { backend } from './backend.ts';
 import { store } from './platform.ts';
@@ -56,7 +59,25 @@ export interface SocialService {
   onChange(fn: (kind: string) => void): () => void;
   /** offline matches report war points in the demo world */
   matchPlayed(won: boolean, kos: number): void;
+  // ---- clan attacks ----
+  raid(): Promise<RaidView>;
+  raidTargets(q: string): Promise<RaidTarget[]>;
+  raidDeclare(target: string, start: number): Promise<Raid>;
+  raidWithdraw(): Promise<void>;
+  raidLineup(raid: string, uids: string[]): Promise<void>;
+  raidFortify(raid: string): Promise<void>;
+  raidHelp(raid: string): Promise<void>;
+  raidFight(raid: string, slot: number): Promise<RaidFight>;
+  raidReport(fight: string, res: FightResult): Promise<{ stars: number; raid: Raid }>;
+  /** lead time / length (the demo's test mode shortens them) */
+  raidTiming(): { minLead: number; duration: number; fast: boolean };
+  // ---- leaderboards & weekly league ----
+  allianceLeaderboard(): Promise<AllianceRow[]>;
+  winsLeaderboard(): Promise<{ pos: number; id: string; name: string; wins: number; mmr: number; fighter: string; trophies: number }[]>;
+  weekStandings(): Promise<{ week: number; tier: number; top: WeekEntry[]; myPos: number; me: WeekStats }>;
 }
+export type RaidTarget = { id: string; name: string; tag: string; badge: number; level: number; members: number; power: number; trophies: number; fee: number; block: string | null };
+export type AllianceRow = ReturnType<typeof allianceLeaderboard>[number];
 
 // ---- server -------------------------------------------------------------------------------------------
 class ServerSocial implements SocialService {
@@ -112,6 +133,19 @@ class ServerSocial implements SocialService {
   onChat(fn: (m: ChatMsg) => void) { this.chatL.add(fn); return () => this.chatL.delete(fn); }
   onChange(fn: (k: string) => void) { this.changeL.add(fn); return () => this.changeL.delete(fn); }
   matchPlayed() { /* the server scores wars itself */ }
+  async raid() { return (await this.api('GET', '/api/raid')).raid; }
+  async raidTargets(q: string) { return (await this.api('POST', '/api/raid/targets', { q })).targets; }
+  async raidDeclare(target: string, start: number) { return (await this.api('POST', '/api/raid/declare', { target, start })).raid; }
+  async raidWithdraw() { await this.api('POST', '/api/raid/withdraw', {}); }
+  async raidLineup(raid: string, uids: string[]) { await this.api('POST', '/api/raid/lineup', { raid, uids }); }
+  async raidFortify(raid: string) { await this.api('POST', '/api/raid/fortify', { raid }); }
+  async raidHelp(raid: string) { await this.api('POST', '/api/raid/help', { raid }); }
+  async raidFight(raid: string, slot: number) { return (await this.api('POST', '/api/raid/fight', { raid, slot })).fight; }
+  async raidReport(fight: string, res: FightResult) { return this.api('POST', '/api/raid/report', { fight, ...res }); }
+  raidTiming() { return { minLead: RAID.minLead, duration: RAID.duration, fast: false }; }
+  async allianceLeaderboard() { return (await this.api('GET', '/api/alliance/leaderboard')).top; }
+  async winsLeaderboard() { return (await this.api('GET', '/api/leaderboard/wins')).top; }
+  async weekStandings() { return this.api('GET', '/api/league/week'); }
 }
 
 // ---- offline demo world ---------------------------------------------------------------------------------
@@ -127,7 +161,7 @@ const BOT_LINES = {
   en: ['anyone up for a match?', 'GG all', 'that new fighter is strong', 'when does the clan war start?', 'need Blaze cards pls', '3 wins in a row today 🔥', 'just hit Gold league!', 'who runs Thunder Strike?', 'hey everyone', 'finally beat the world map'],
 };
 
-interface DemoState { db: SocialDb; seeded: boolean; lastTick: number }
+interface DemoState { db: SocialDb; seeded: boolean; lastTick: number; weeksDone?: number[] }
 
 class DemoSocial implements SocialService {
   readonly demo = true;
@@ -141,7 +175,29 @@ class DemoSocial implements SocialService {
     this.st = store.get<DemoState | null>('social', null) ?? { db: newSocialDb(), seeded: false, lastTick: 0 };
     if (!this.st.seeded) this.seedWorld();
     this.st.db.roles[this.me.id] = 'admin'; // the tester can try the police panel
+    // sample anti-cheat cases so the police panel shows what flagged players look like
+    if (!this.st.db.cheats) {
+      const n = Date.now(), c3 = this.st.db.clans.demo3?.members[2], c7 = this.st.db.clans.demo7?.members[5];
+      this.st.db.cheats = {};
+      if (c3) this.st.db.cheats[c3.id] = { score: 12, at: n, name: c3.name, reported: true, flags: [
+        { t: n - 900_000, kind: 'offline', detail: 'win in 6s; 9 KOs > possible 3', pts: 8 }, { t: n - 400_000, kind: 'raid', detail: 'claimed 240s in 31s, dmg 410', pts: 4 }] };
+      if (c7) this.st.db.cheats[c7.id] = { score: 3, at: n, name: c7.name, flags: [{ t: n - 2000_000, kind: 'speed', detail: 'input seq jumped 300 frames', pts: 3 }] };
+    }
     this.timer = window.setInterval(() => this.tick(), 6000);
+    this.settleWeeks();
+  }
+
+  /** Pays the tester's weekly league podium against the computer bracket once a week ends. */
+  private settleWeeks() {
+    const p = this.me, w = p.lweek;
+    const done = (this.st.weeksDone ??= []);
+    if (!w || w.id >= weekId(Date.now()) || done.includes(w.id) || w.w + w.l === 0) return;
+    done.push(w.id);
+    const end = weekWindow(w.id).end;
+    const ranked = rankWeek([...demoRivals(w.id, w.tier, end, BOT_NAMES), { id: p.id, name: p.name, pts: w.pts, w: w.w, l: w.l, t: w.t, tier: w.tier }]);
+    const place = ranked.findIndex((e) => e.id === p.id) + 1;
+    if (place >= 1 && place <= 3) awardWeek(p, w.id, w.tier, place, Date.now());
+    this.save();
   }
   private get me(): Profile { return backend.profile; }
   private rand = () => { this.seed = (this.seed * 16807) % 2147483647; return (this.seed % 100000) / 100000; };
@@ -247,11 +303,66 @@ class DemoSocial implements SocialService {
         mine.requests.push({ uid: 'stranger' + Date.now().toString(36), name, mmr: 1000 + Math.floor(Math.random() * 500), level: 2 + Math.floor(Math.random() * 20), t: Date.now() });
       }
     }
+    if (mine) this.tickRaids(ctx, mine);
     const hadWar = !!mine?.war;
     warTick(ctx);
     if (hadWar && !mine?.war) this.changeL.forEach((f) => f('war'));
     this.st.lastTick = Date.now();
     store.set('social', this.st);
+  }
+
+  /** demo clan attacks: bots join small clans, bot clans sometimes attack, bot mates/foes fight */
+  private tickRaids(ctx: SocialCtx, mine: Clan) {
+    const db = this.st.db;
+    // a growing clan: computer players join open clans with few members
+    if (mine.type === 'open' && mine.members.length < 8 && Math.random() < 0.12) {
+      const name = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
+      const id = 'joiner' + Date.now().toString(36);
+      mine.members.push({ id, name, role: 'member', joined: Date.now(), mmr: 950 + Math.floor(Math.random() * 400), level: 3 + Math.floor(Math.random() * 15), fighter: FIGHTERS[Math.floor(Math.random() * FIGHTERS.length)].id, donated: 0, gemsGiven: 0, warPts: 0, seen: Date.now(), bot: true });
+      db.userClan[id] = mine.id;
+      this.changeL.forEach((f) => f('clan'));
+    }
+    const rd = raidState(mine);
+    const t = this.raidTiming();
+    // now and then a computer clan declares an attack on us (so the defense side can be tried)
+    if (!rd.in && Date.now() > rd.shieldUntil && Math.random() < (t.fast ? 0.03 : 0.004)) {
+      const foes = Object.values(db.clans).filter((x) => x.bot && !raidState(x).out && !mine.allies.includes(x.id));
+      const foe = foes[Math.floor(Math.random() * foes.length)];
+      if (foe) {
+        foe.level = Math.max(foe.level, 2); foe.bank = Math.max(foe.bank, 2000);
+        raidState(foe).banners = 1; raidState(foe).cdUntil = 0;
+        const leader = { ...this.me, id: foe.members[0].id } as Profile;
+        try { raidDeclare(ctx, leader, mine.id, Date.now() + t.minLead, t); this.changeL.forEach((f) => f('raid')); } catch { /* not allowed right now */ }
+      }
+    }
+    const live = (id: string | null) => { const r = id ? raidOf(ctx, id) : null; return r && r.status === 'live' ? r : null; };
+    // our computer clan mates attack in our raid
+    const out = live(rd.out);
+    if (out) for (const m of mine.members.filter((x) => x.bot)) {
+      if ((out.used[m.id] ?? 0) >= RAID.attacksPerMember || Math.random() > 0.2) continue;
+      const open = out.slots.map((s, i) => [s, i] as const).filter(([s]) => s.stars < 3);
+      if (!open.length) break;
+      const [s, i] = open[Math.floor(Math.random() * open.length)];
+      const stars = Math.random() < 0.25 ? 0 : 1 + Math.floor(Math.random() * 3);
+      out.used[m.id] = (out.used[m.id] ?? 0) + 1; s.stars = Math.max(s.stars, stars);
+      out.attacks.unshift({ uid: m.id, name: m.name, slot: i, stars, t: Date.now() });
+      this.changeL.forEach((f) => f('raid'));
+    }
+    // the enemy attacks our defenders (fortifications make it harder)
+    const inc = live(rd.in);
+    if (inc && Math.random() < 0.3) {
+      const open = inc.slots.map((s, i) => [s, i] as const).filter(([s]) => s.stars < 3);
+      if (open.length) {
+        const [s, i] = open[Math.floor(Math.random() * open.length)];
+        const stars = Math.max(0, Math.min(3, Math.floor(Math.random() * 4) - (inc.fort > 1 ? 1 : 0)));
+        s.stars = Math.max(s.stars, stars);
+        inc.attacks.unshift({ uid: 'enemy', name: inc.attTag, slot: i, stars, t: Date.now() });
+        this.changeL.forEach((f) => f('raid'));
+      }
+    }
+    const before = JSON.stringify([rd.out, rd.in]);
+    raidTick(ctx);
+    if (JSON.stringify([rd.out, rd.in]) !== before) this.changeL.forEach((f) => f('raid'));
   }
 
   myClan() { return this.wrap(() => this.mineView()); }
@@ -351,6 +462,35 @@ class DemoSocial implements SocialService {
   staffRole() { return this.st.db.roles[this.me.id] ?? null; }
   onChat(fn: (m: ChatMsg) => void) { this.chatL.add(fn); return () => this.chatL.delete(fn); }
   onChange(fn: (k: string) => void) { this.changeL.add(fn); return () => this.changeL.delete(fn); }
+  raid() { return this.wrap((c) => raidView(c, clanOf(c.db, this.me.id) ?? (() => { throw new SocialError('no-clan'); })())); }
+  raidTargets(q: string) { return this.wrap((c) => raidTargets(c, this.me, q)); }
+  raidDeclare(target: string, start: number) { return this.wrap((c) => raidDeclare(c, this.me, target, start, this.raidTiming())); }
+  raidWithdraw() { return this.wrap((c) => { raidWithdraw(c, this.me); }); }
+  raidLineup(raid: string, uids: string[]) { return this.wrap((c) => { raidSetLineup(c, this.me, raid, uids); }); }
+  raidFortify(raid: string) { return this.wrap((c) => { raidFortify(c, this.me, raid); }); }
+  raidHelp(raid: string) { return this.wrap((c) => { raidHelp(c, this.me, raid); }); }
+  raidFight(raid: string, slot: number) { return this.wrap((c) => raidFightStart(c, this.me, raid, slot)); }
+  raidReport(fight: string, res: FightResult) { return this.wrap((c) => raidFightEnd(c, this.me, fight, res)); }
+  /** test mode (Settings) shortens the 1-hour lead and window to minutes so the flow can be tried */
+  raidTiming() { return this.me.dev ? { minLead: 2 * 60_000, duration: 10 * 60_000, fast: true } : { minLead: RAID.minLead, duration: RAID.duration, fast: false }; }
+  allianceLeaderboard() { return this.wrap((c) => allianceLeaderboard(c.db, 30)); }
+  winsLeaderboard() {
+    return this.wrap((c) => {
+      const rows = Object.values(c.db.clans).flatMap((x) => x.members).filter((m) => m.bot).map((m) => ({ id: m.id, name: m.name, wins: Math.round((m.mmr - 900) / 4 + m.level * 3), mmr: m.mmr, fighter: m.fighter, trophies: m.level > 20 ? 1 : 0 }));
+      const me = this.me;
+      rows.push({ id: me.id, name: me.name, wins: me.stats.leagueWins ?? 0, mmr: me.rank.mmr, fighter: me.selFighter, trophies: me.trophies.length });
+      return rows.sort((a, b) => b.wins - a.wins || b.mmr - a.mmr).slice(0, 100).map((x, i) => ({ pos: i + 1, ...x }));
+    });
+  }
+  weekStandings() {
+    return this.wrap(() => {
+      const now = Date.now();
+      this.settleWeeks();
+      const me = weekStats(this.me, now);
+      const ranked = rankWeek([...demoRivals(me.id, me.tier, now, BOT_NAMES), { id: this.me.id, name: this.me.name, pts: me.pts, w: me.w, l: me.l, t: me.t || now, tier: me.tier }]);
+      return { week: me.id, tier: me.tier, top: ranked.slice(0, 50), myPos: ranked.findIndex((x) => x.id === this.me.id) + 1, me };
+    });
+  }
   matchPlayed(won: boolean, kos: number) {
     const c = this.ctx();
     if (warReport(c, this.me.id, won, kos)) { store.set('social', this.st); this.changeL.forEach((f) => f('war')); }

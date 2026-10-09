@@ -14,6 +14,7 @@ interface UserRec {
   purchaseTokens: string[];
   ads: { day: string; count: number };
   cpu?: { day: string; count: number };
+  recent?: number[];
   banned?: boolean;
 }
 
@@ -96,4 +97,14 @@ export function socialCtx(): SocialCtx {
 export function isBanned(token: string) {
   const id = db.byToken[token];
   return !!id && !!db.social.bans[id];
+}
+
+export function allProfiles() { return Object.values(db.users).map((u) => u.profile); }
+
+/** All-time league (ranked) wins. */
+export function winsLeaderboard(limit = 100) {
+  return Object.values(db.users)
+    .filter((u) => (u.profile.stats.leagueWins ?? 0) > 0 || u.profile.rank.wins > 0)
+    .map((u) => ({ id: u.profile.id, name: u.profile.name, wins: Math.max(u.profile.stats.leagueWins ?? 0, u.profile.rank.wins), mmr: u.profile.rank.mmr, fighter: u.profile.selFighter, trophies: (u.profile.trophies ?? []).length }))
+    .sort((a, b) => b.wins - a.wins || b.mmr - a.mmr).slice(0, limit).map((x, i) => ({ pos: i + 1, ...x }));
 }

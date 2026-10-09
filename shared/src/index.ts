@@ -8,5 +8,8 @@ export * from './spells.ts';
 export * from './economy.ts';
 export * from './progress.ts';
 export * from './social.ts';
+export * from './league.ts';
+export * from './raid.ts';
+export * from './anticheat.ts';
 export * from './rank.ts';
 export * from './protocol.ts';

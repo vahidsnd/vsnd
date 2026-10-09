@@ -1,6 +1,6 @@
 import {
   ACHIEVEMENTS, CRATE_ODDS, FIGHTERS, IAP_PRODUCTS, PASS_TIERS, PASS_XP_PER_TIER, achievementState, passReward, passTier, seasonEndsAt,
-  shopCatalog, skinPrice, tierFor, getFighter, dayKey, xpForLevel, featureUnlocked, fighterPower, type PassReward,
+  shopCatalog, skinPrice, tierFor, TIERS, PLACE_NAMES, getFighter, dayKey, xpForLevel, featureUnlocked, fighterPower, type PassReward,
 } from '@nb/shared';
 import { social } from '../services/social.ts';
 import { upgradePanel, milestonesBlock } from './progress.ts';
@@ -404,6 +404,13 @@ export function profileScreen(): Screen {
         box(num(p.stats.kos), t('kos')), box(num(p.stats.falls), t('falls')), box(`${num(p.stats.dmg)}%`, t('damage')),
         box(num(p.stats.bestCombo), t('combo')), box(num(p.stats.flawless), t('statFlawless')), box(num(p.stats.online), t('statOnline')),
       ),
+      h('div', { class: 'box' }, h('h3', {}, svg('trophy', 16), ' ', isFa() ? 'قفسه افتخارات' : 'Trophy cabinet', h('small', { class: 'muted' }, ` · ${isFa() ? 'برد لیگ' : 'league wins'} ${num(p.stats.leagueWins ?? 0)}`)),
+        p.trophies.length ? h('div', { class: 'cabinet' }, p.trophies.map((tr) => {
+          const tt = TIERS[tr.tier];
+          return h('div', { class: 'cup', style: { '--cc': tr.place === 1 ? '#ffd23f' : tr.place === 2 ? '#d6dde8' : '#d08a52' } as any }, svg('trophy', 26),
+            h('b', {}, isFa() ? PLACE_NAMES[tr.place - 1].fa : PLACE_NAMES[tr.place - 1].en),
+            h('small', { style: { color: tt.color } }, isFa() ? tt.nameFa : tt.name), h('small', { class: 'muted' }, `${isFa() ? 'هفته' : 'week'} ${num(tr.week)}`));
+        })) : h('p', { class: 'muted' }, isFa() ? 'هنوز جامی نداری. در لیگ هفتگی جزو سه نفر اول شو!' : 'No trophies yet. Finish top 3 in a weekly league!')),
       h('div', { class: 'two-col' },
         h('div', { class: 'box' }, h('h3', {}, t('mastery')),
           FIGHTERS.map((f) => {
@@ -427,47 +434,55 @@ export function profileScreen(): Screen {
 // ============================================================================================
 // Leaderboard
 // ============================================================================================
-export function leaderboardScreen(tab: 'players' | 'clans' = 'players'): Screen {
+type LbTab = 'players' | 'wins' | 'week' | 'clans' | 'alliances';
+export function leaderboardScreen(tab: LbTab = 'players'): Screen {
   const p = backend.profile;
-  const tier = tierFor(p.rank.mmr);
+  const fa = isFa();
   const list = h('div', { class: 'scroll narrow' }, h('div', { class: 'muted center' }, '…'));
-  const tabs = h('div', { class: 'tabs' },
-    h('button', { class: `tab ${tab === 'players' ? 'on' : ''}`, onclick: () => show(() => leaderboardScreen('players')) }, isFa() ? 'بازیکن‌ها' : 'Players'),
-    h('button', { class: `tab ${tab === 'clans' ? 'on' : ''}`, onclick: () => show(() => leaderboardScreen('clans')) }, isFa() ? 'قبیله‌ها' : 'Clans'));
-  if (tab === 'clans') {
-    social().clanLeaderboard().then((rows) => {
-      list.innerHTML = '';
-      if (!rows.length) { list.append(h('div', { class: 'muted center' }, t('lbEmpty'))); return; }
-      for (const r of rows) list.append(h('div', { class: `lb-row ${r.id === p.clan?.id ? 'me' : ''}` },
-        h('span', { class: `pos ${r.pos <= 3 ? 'p' + r.pos : ''}` }, r.pos <= 3 ? svg('trophy', 18) : num(r.pos)),
-        h('span', { class: 'lb-clan' }, svg('shield', 26)),
-        h('div', { class: 'who' }, h('b', {}, r.name, h('small', { class: 'muted' }, ` [${r.tag}]`)),
-          h('small', {}, `${isFa() ? 'سطح' : 'Lv'} ${num(r.level)} · ${num(r.members)}/15 · ${isFa() ? 'برد جنگ' : 'war wins'} ${num(r.warWins)}`)),
-        h('b', {}, num(r.power))));
-    }).catch(() => { list.innerHTML = ''; list.append(h('div', { class: 'muted center' }, t('noLeaderboard'))); });
-    return { el: h('div', { class: 'page leaderboard' }, topBar({ back: home, title: t('leaderboard') }), tabs, list) };
-  }
-  backend.leaderboard().then((rows) => {
-    list.innerHTML = '';
-    if (!rows.length) { list.append(h('div', { class: 'muted center' }, backend.online ? t('lbEmpty') : t('noLeaderboard'))); return; }
-    for (const r of rows) {
+  const names: Record<LbTab, string> = { players: fa ? 'برترین بازیکن‌ها' : 'Top players', wins: fa ? 'بیشترین برد لیگ' : 'Most league wins', week: fa ? 'لیگ این هفته' : 'This week', clans: fa ? 'برترین قبیله‌ها' : 'Top clans', alliances: fa ? 'برترین اتحادها' : 'Top alliances' };
+  const tabs = h('div', { class: 'tabs' }, (Object.keys(names) as LbTab[]).map((k) => h('button', { class: `tab ${tab === k ? 'on' : ''}`, onclick: () => show(() => leaderboardScreen(k)) }, names[k])));
+  const pos = (n: number) => h('span', { class: `pos ${n <= 3 ? 'p' + n : ''}` }, n <= 3 ? svg('trophy', 18) : num(n));
+  const empty = (msg = t('lbEmpty')) => { list.innerHTML = ''; list.append(h('div', { class: 'muted center' }, msg)); };
+  const fill = (rows: HTMLElement[]) => { list.innerHTML = ''; if (!rows.length) empty(); else list.append(...rows); };
+  const fail = () => empty(backend.online || social().demo ? t('lbEmpty') : t('noLeaderboard'));
+  if (tab === 'players') {
+    backend.leaderboard().then((rows) => fill(rows.map((r) => {
       const ti = tierFor(r.mmr);
-      list.append(h('div', { class: `lb-row ${r.id === p.id ? 'me' : ''}` },
-        h('span', { class: `pos ${r.pos <= 3 ? 'p' + r.pos : ''}` }, r.pos <= 3 ? svg('trophy', 18) : num(r.pos)),
-        fighterCanvas(r.fighter, 0, 40),
-        h('div', { class: 'who' }, h('b', {}, r.name),
-          h('small', {}, h('span', { style: { color: ti.tier.color } }, isFa() ? ti.tier.nameFa : ti.tier.name), ` · ${num(r.wins)}${t('wins')} / ${num(r.losses)}${t('losses')}`)),
-        h('b', {}, num(r.mmr))));
-    }
-  }).catch(() => { list.innerHTML = ''; list.append(h('div', { class: 'muted center' }, t('noLeaderboard'))); });
-  const el = h('div', { class: 'page leaderboard' },
-    topBar({ back: home, title: t('leaderboard') }),
-    tabs,
-    h('div', { style: { padding: '0 var(--pad) 8px' } }, h('div', { class: 'lb-me narrow', style: { borderColor: tier.tier.color } },
-      h('b', { style: { color: tier.tier.color } }, isFa() ? tier.tier.nameFa : tier.tier.name),
-      h('span', {}, `${t('mmr')}: ${num(p.rank.mmr)} · ${t('wins')} ${num(p.rank.wins)} · ${t('losses')} ${num(p.rank.losses)}`))),
-    list);
-  return { el };
+      return h('div', { class: `lb-row ${r.id === p.id ? 'me' : ''}` }, pos(r.pos), fighterCanvas(r.fighter, 0, 40),
+        h('div', { class: 'who' }, h('b', {}, r.name), h('small', {}, h('span', { style: { color: ti.tier.color } }, fa ? ti.tier.nameFa : ti.tier.name), ` · ${num(r.wins)}${t('wins')} / ${num(r.losses)}${t('losses')}`)),
+        h('b', {}, num(r.mmr)));
+    }))).catch(fail);
+    if (!backend.online) social().winsLeaderboard().then((rows) => fill(rows.sort((a, b) => b.mmr - a.mmr).map((r, i) => {
+      const ti = tierFor(r.mmr);
+      return h('div', { class: `lb-row ${r.id === p.id ? 'me' : ''}` }, pos(i + 1), fighterCanvas(r.fighter, 0, 40),
+        h('div', { class: 'who' }, h('b', {}, r.name), h('small', { style: { color: ti.tier.color } }, fa ? ti.tier.nameFa : ti.tier.name)), h('b', {}, num(r.mmr)));
+    }))).catch(fail);
+  } else if (tab === 'wins') {
+    social().winsLeaderboard().then((rows) => fill(rows.map((r) => h('div', { class: `lb-row ${r.id === p.id ? 'me' : ''}` }, pos(r.pos), fighterCanvas(r.fighter, 0, 40),
+      h('div', { class: 'who' }, h('b', {}, r.name), h('small', {}, `${fa ? 'جام‌ها' : 'trophies'} ${num(r.trophies)} · ${num(r.mmr)}`)),
+      h('b', {}, num(r.wins), h('small', { class: 'muted' }, ` ${fa ? 'برد' : 'wins'}`)))))).catch(fail);
+  } else if (tab === 'week') {
+    social().weekStandings().then((w) => {
+      const tt = TIERS[w.tier];
+      const head = h('div', { class: 'lb-me', style: { borderColor: tt.color } }, h('b', { style: { color: tt.color } }, `${fa ? 'لیگ' : 'League'} ${fa ? tt.nameFa : tt.name} · ${fa ? 'هفته' : 'week'} ${num(w.week)}`),
+        h('span', {}, `${fa ? 'رتبه تو' : 'Your rank'}: ${w.myPos ? num(w.myPos) : '—'} · ${num(w.me.pts)} ${fa ? 'امتیاز' : 'pts'}`));
+      fill([head, ...w.top.map((e, i) => h('div', { class: `lb-row ${e.id === p.id ? 'me' : ''} ${i < 3 ? 'podium' : ''}` }, pos(i + 1),
+        h('div', { class: 'who' }, h('b', {}, e.name), h('small', {}, `${num(e.w)}${t('wins')} / ${num(e.l)}${t('losses')}`)),
+        h('b', {}, num(e.pts), h('small', { class: 'muted' }, ` ${fa ? 'امتیاز' : 'pts'}`))))]);
+    }).catch(fail);
+  } else if (tab === 'clans') {
+    social().clanLeaderboard().then((rows) => fill(rows.map((r: any) => h('div', { class: `lb-row ${r.id === p.clan?.id ? 'me' : ''}` }, pos(r.pos),
+      h('span', { class: 'lb-clan' }, svg('shield', 26)),
+      h('div', { class: 'who' }, h('b', {}, r.name, h('small', { class: 'muted' }, ` [${r.tag}]`)),
+        h('small', {}, `${fa ? 'سطح' : 'Lv'} ${num(r.level)} · ${num(r.members)}/15 · ${fa ? 'جام' : 'trophies'} ${num(r.trophies ?? 0)} · ${fa ? 'برد جنگ' : 'war wins'} ${num(r.warWins)}`)),
+      h('b', {}, num(r.score ?? r.power)))))).catch(fail);
+  } else {
+    social().allianceLeaderboard().then((rows) => fill(rows.map((r) => h('div', { class: 'lb-row' }, pos(r.pos),
+      h('span', { class: 'lb-clan' }, svg('handshake', 26)),
+      h('div', { class: 'who' }, h('b', {}, fa ? `اتحاد ${r.name}` : `${r.name} Alliance`), h('small', { dir: 'ltr' }, r.tags.map((x) => `[${x}]`).join(' '), ` · ${num(r.clans)} · ${num(r.members)}`)),
+      h('b', {}, num(r.score)))))).catch(fail);
+  }
+  return { el: h('div', { class: 'page leaderboard' }, topBar({ back: home, title: t('leaderboard') }), tabs, list) };
 }
 
 // ============================================================================================
@@ -527,7 +542,7 @@ export function settingsScreen(): Screen {
         h('button', { class: 'btn ghost', onclick: () => { resetIntros(); toast(t('tipsReset'), 'ok'); } }, svg('refresh', 16), t('resetTips')),
       ),
       h('div', { class: 'help' }, h('b', {}, t('controls')), h('p', {}, t('keyboardHelp')), h('p', { class: 'muted' }, t('gamepadHelp'))),
-      h('small', { class: 'muted' }, `ID: ${p.id} · v1.3.0 · ${backend.online ? t('online') : t('offline')}`),
+      h('small', { class: 'muted' }, `ID: ${p.id} · v1.4.0 · ${backend.online ? t('online') : t('offline')}`),
     ),
   );
   return { el };

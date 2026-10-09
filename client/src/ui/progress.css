@@ -132,3 +132,19 @@
 .res-side { display: flex; flex-direction: column; gap: 8px; }
 .res-map { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .res-map .stars i { width: 28px; height: 28px; }
+
+/* weekly league */
+.week-box { border-color: color-mix(in srgb, var(--tc) 45%, transparent); }
+.week-box h3 { color: var(--tc); }
+.week-me { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.week-podium { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.pod { background: #00000033; border: 1px solid var(--line); border-radius: 12px; padding: 6px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.pod .chips { font-size: 11px; }
+.pod-cup { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; }
+.pod.p1 .pod-cup { color: #ffd23f; background: #ffd23f22; } .pod.p2 .pod-cup { color: #d6dde8; background: #d6dde822; } .pod.p3 .pod-cup { color: #d08a52; background: #d08a5222; }
+.lb-row.podium { border-color: #ffd23f55; }
+/* trophy cabinet */
+.cabinet { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.cup { border: 1px solid var(--line); border-radius: 12px; background: #00000033; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; text-align: center; }
+.cup .svg-ico { color: var(--cc); }
+@media (max-width: 700px) { .week-me { grid-template-columns: 1fr 1fr; } }

@@ -154,5 +154,17 @@ test('clans, roles, chat, war, police and promo codes', async () => {
   await api('POST', '/api/police/act', lt, { action: 'mute', target: mid, minutes: 5 });
   const muted = await api('POST', '/api/chat/post', mt, { ch: 'global', text: 'hi' });
   assert.equal(muted.json.error, 'muted');
+  // leaderboards, weekly league, clan attack info
+  for (const path of ['/api/leaderboard/wins', '/api/clan/leaderboard', '/api/alliance/leaderboard']) assert.equal((await api('GET', path, lt)).status, 200, path);
+  const wk = await api('GET', '/api/league/week', lt);
+  assert.equal(wk.status, 200); assert.ok(wk.json.week > 0);
+  const rv = await api('GET', '/api/raid', lt);
+  assert.equal(rv.status, 200); assert.equal(rv.json.raid.banners, 1);
+  const tg = await api('POST', '/api/raid/targets', lt, {});
+  assert.equal(tg.status, 200);
+  // the request flood limiter answers 429 instead of serving forever
+  let limited = false;
+  for (let i = 0; i < 12 && !limited; i++) limited = (await api('POST', '/api/redeem', mt, { code: 'NOPE' + i })).status === 429;
+  assert.ok(limited, 'redeem attempts are rate limited');
   cm.ws.close();
 });

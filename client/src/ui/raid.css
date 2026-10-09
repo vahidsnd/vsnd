@@ -1,0 +1,42 @@
+/* Clan attacks */
+.raid-body { gap: 10px; }
+.raid-status { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.raid-status .rs { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0 8px; font-size: 12px; min-width: 0; }
+.raid-status .rs .svg-ico { grid-row: span 3; color: var(--accent); }
+.raid-status .rs b { font-size: 14px; }
+.raid-card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.raid-card.att { border-color: #ff3d7f66; background: linear-gradient(120deg, #ff3d7f14, var(--panel) 40%); }
+.raid-card.def { border-color: #29e3f066; background: linear-gradient(120deg, #29e3f014, var(--panel) 40%); }
+.raid-card.st-live { box-shadow: 0 0 0 1px #ffc93c55, 0 0 18px #ffc93c22; }
+.rc-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+.rc-vs { display: flex; flex-direction: column; min-width: 0; font-size: 13px; }
+.rc-score { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 18px; }
+.rc-score .stars i { width: 20px; height: 20px; }
+.rc-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+.rc-slot { background: #00000033; border: 1px solid var(--line); border-radius: 12px; padding: 4px 6px 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; min-width: 0; }
+.rc-slot b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rc-slot.down { opacity: .5; }
+.rc-slot .stars i { width: 14px; height: 14px; }
+.rc-prep { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.rc-feed { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--muted); max-height: 110px; overflow-y: auto; }
+.rc-feed .stars i { width: 10px; height: 10px; }
+.raid-targets { display: flex; flex-direction: column; gap: 6px; }
+.raid-target { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; background: #00000022; }
+.raid-target.blocked { opacity: .65; }
+.rt-main { display: flex; flex-direction: column; min-width: 0; font-size: 13px; }
+.rt-main small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt-block { color: var(--muted); font-size: 11px; display: flex; gap: 4px; align-items: center; max-width: 170px; }
+.raid-declare .input { flex: 1; min-width: 0; }
+.raid-declare-modal { display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 460px; text-align: center; }
+.raid-help-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px; align-items: center; font-size: 13px; }
+.raid-log { display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px; align-items: center; font-size: 12px; border-top: 1px solid var(--line); padding-top: 4px; }
+.raid-log.won b { color: var(--green); } .raid-log.lost b { color: var(--red); }
+.raid-rules ul { margin: 6px 0 0; padding-inline-start: 18px; font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+.raid-rules summary { cursor: pointer; font-weight: 800; }
+.raid-lineup { display: flex; flex-direction: column; gap: 8px; min-width: min(420px, 80vw); }
+.raid-pick { display: flex; flex-direction: column; gap: 4px; max-height: 52vh; overflow-y: auto; }
+.raid-pick-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px; align-items: center; border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 3px 8px; cursor: pointer; text-align: start; }
+.raid-pick-row.on { border-color: var(--accent); }
+.raid-result { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.clan-raidbtn { margin-inline-start: 6px; }
+@media (max-width: 700px) { .raid-status { grid-template-columns: 1fr 1fr; } }
