@@ -12,6 +12,7 @@ import { checkUnlocks, onboarding, silenceExistingUnlocks } from './tutorial.ts'
 import { social } from '../services/social.ts';
 import { t, num, isFa, loc } from '../i18n.ts';
 import { liveopsPopup, refreshOffers } from './liveops.ts';
+import { socialTools } from './notifs.ts';
 
 let loginShownDay = '';
 let starterShown = false;
@@ -64,6 +65,7 @@ export function homeScreen(): Screen {
     tool('wheel', 'wheel', fa ? 'گردونه شانس' : 'Lucky wheel', () => progress((m) => m.wheelModal(() => show(homeScreen))), wheelFree ? 1 : 0, 'wheel'),
     tool('collection', 'layers', fa ? 'کلکسیون' : 'Collection', () => import('./collection.ts').then((m) => show(() => m.collectionScreen())), 0, 'collection'),
     tool('vip', 'crown', 'VIP', () => import('./liveops.ts').then((m) => show(m.vipScreen)), vipCanClaim(p) ? 1 : 0, 'vip'),
+    ...socialTools(),
   );
 
   const hero = h('div', { class: 'hero' },

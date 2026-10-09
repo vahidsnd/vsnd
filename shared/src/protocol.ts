@@ -43,6 +43,7 @@ export type ServerMsg =
   | { t: 'chat'; msg: ChatMsg }
   | { t: 'social'; kind: string }
   | { t: 'profile'; profile: Profile }
+  | { t: 'notif'; notif: import('./notify.ts').Notif; unread: number }
   | { t: 'error'; msg: string };
 
 export const PROTOCOL_VERSION = 2;

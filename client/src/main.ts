@@ -31,6 +31,9 @@ async function boot() {
   splash.classList.add('out');
   setTimeout(() => splash.remove(), 400);
   show(homeScreen);
+  // notification center: server list + websocket pushes + FCM token registration (when the
+  // native build has @capacitor/push-notifications), or the offline demo generator
+  import('./services/notifs.ts').then((m) => m.notifs()).catch(() => {});
 
   const unlock = () => { audio.unlock(); audio.startMusic('menu'); removeEventListener('pointerdown', unlock); removeEventListener('keydown', unlock); };
   addEventListener('pointerdown', unlock);

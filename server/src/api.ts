@@ -12,8 +12,9 @@ import { config } from './config.ts';
 import { winsLeaderboard, createGuest, isPurchaseTokenUsed, leaderboard, markDirty, markPurchaseToken, sanitizeName, userByToken, type UserRec } from './db.ts';
 import { verifyGooglePlay } from './billing/googleplay.ts';
 import { verifyMyket } from './billing/myket.ts';
+import { accountRoutes } from './accounts.ts';
 
-type Handler = (body: any, user: UserRec | null) => Promise<unknown> | unknown;
+type Handler = (body: any, user: UserRec | null, req: http.IncomingMessage) => Promise<unknown> | unknown;
 const apiLimit = new RateLimiter(180), redeemLimit = new RateLimiter(6), reportLimit = new RateLimiter(10);
 
 const routes: Record<string, Handler> = {
@@ -174,6 +175,7 @@ const routes: Record<string, Handler> = {
   'GET /api/health': () => ({ ok: true }),
   ...socialRoutes,
   ...liveopsRoutes,
+  ...accountRoutes,
 };
 
 function clamp(v: unknown, lo: number, hi: number) {
@@ -206,7 +208,7 @@ export async function handleApi(req: http.IncomingMessage, res: http.ServerRespo
     if (url.pathname.startsWith('/api/admin/') && (!config.adminKey || req.headers['x-admin-key'] !== config.adminKey)) throw new HttpError(403, 'admin');
     const body = req.method === 'POST' ? await readJson(req) : {};
     const token = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
-    const out = await handler(body, userByToken(token));
+    const out = await handler(body, userByToken(token), req);
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(out));
   } catch (e) {
     const code = e instanceof HttpError ? e.code : 500;

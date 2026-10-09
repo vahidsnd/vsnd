@@ -8,6 +8,7 @@ import { loadDb, userByToken, type UserRec } from './db.ts';
 import { handleApi } from './api.ts';
 import { socketsByUser } from './sockets.ts';
 import { socialTick } from './social.ts';
+import { presenceOffline, presenceOnline, startAccountsTick } from './accounts.ts';
 import { activeMatches, matchByUser, send } from './match.ts';
 import { dequeue, enqueue, inMatch, matchmakeTick, queuedCount, roomCreate, roomJoin, roomLeave, roomStart, roomUpdate } from './matchmaker.ts';
 
@@ -43,6 +44,7 @@ wss.on('connection', (ws) => {
       const old = socketsByUser.get(user.profile.id);
       if (old && old !== ws) old.close(4000, 'replaced');
       socketsByUser.set(user.profile.id, ws);
+      presenceOnline(user.profile.id);
       send(ws, { t: 'welcome', profile: user.profile, online: socketsByUser.size });
       inMatch(user)?.reconnect(user, ws);
       return;
@@ -68,7 +70,7 @@ wss.on('connection', (ws) => {
   });
   ws.on('close', () => {
     if (!user) return;
-    if (socketsByUser.get(user.profile.id) === ws) socketsByUser.delete(user.profile.id);
+    if (socketsByUser.get(user.profile.id) === ws) { socketsByUser.delete(user.profile.id); presenceOffline(user.profile.id); }
     dequeue(user);
     roomLeave(user);
     matchByUser.get(user.profile.id)?.disconnect(user);
@@ -77,6 +79,7 @@ wss.on('connection', (ws) => {
 
 setInterval(matchmakeTick, 1000).unref();
 setInterval(socialTick, 30_000).unref();
+startAccountsTick();
 setInterval(() => {
   console.log(`[stats] online=${socketsByUser.size} queued=${queuedCount()} matches=${activeMatches.size}`);
 }, 60_000).unref();

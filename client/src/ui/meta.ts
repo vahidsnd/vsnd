@@ -557,6 +557,7 @@ export function settingsScreen(): Screen {
         h('input', { type: 'checkbox', checked: !!p.dev, onchange: (e: Event) => { backend.setDev((e.target as HTMLInputElement).checked); toast(t('saved'), 'ok'); } }),
         h('small', { class: 'muted' }, isFa() ? 'فقط برای بررسی نسخه آزمایشی؛ روی سرور واقعی اثری ندارد.' : 'Only for reviewing the test build; has no effect on a real server.')) : null,
       h('div', { class: 'row', style: { justifyContent: 'flex-start' } },
+        h('button', { class: 'btn primary', 'data-f': 'account', onclick: () => import('./account.ts').then((m) => show(m.accountScreen)) }, svg('user', 16), isFa() ? 'حساب کاربری و بازیابی' : 'Account & recovery'),
         h('button', { class: 'btn accent', onclick: () => import('./play.ts').then((m) => m.startTutorial()) }, svg('help', 16), t('replayTutorial')),
         h('button', { class: 'btn ghost', onclick: () => { resetIntros(); toast(t('tipsReset'), 'ok'); } }, svg('refresh', 16), t('resetTips')),
       ),
