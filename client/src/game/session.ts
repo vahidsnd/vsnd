@@ -1,6 +1,6 @@
 import {
   Btn, applyFighters, applyMeta, botInput, cloneState, createBrain, createGame, decodeProjectiles, step,
-  INPUT_REDUNDANCY, type BotBrain, type GameEvent, type GameState, type MatchConfig, type MatchEndInfo,
+  INPUT_REDUNDANCY, type BotBrain, type ReplayRecorder, type GameEvent, type GameState, type MatchConfig, type MatchEndInfo,
 } from '@nb/shared';
 import type { InputSource } from './input.ts';
 import { net } from '../net/net.ts';
@@ -29,6 +29,8 @@ export class LocalSession implements Session {
   /** training dummy behaviour (slot 1) */
   dummy: 'idle' | 'jump' | 'shield' | 'cpu' = 'idle';
   private dummyBrain = createBrain(4);
+  /** set by the match screen to record a replay (not used for training / tutorial) */
+  recorder?: ReplayRecorder;
 
   constructor(cfg: MatchConfig, private sources: (InputSource | null)[], botLevels: (number | null)[], public training = false) {
     this.state = createGame(cfg);
@@ -52,6 +54,7 @@ export class LocalSession implements Session {
       }
       return b ? botInput(this.state, i, b) : 0;
     });
+    this.recorder?.push(inputs);
     step(this.state, inputs);
     this.events = this.state.events;
     if (this.training) for (const f of this.state.fighters) if (f.stocks < 99) f.stocks = 99;

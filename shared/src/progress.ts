@@ -5,6 +5,7 @@ import { leagueSteps, promotionReward, SEASON_REWARDS, tierFor, type LeagueId } 
 import { addXp, openCrate, type CrateResult, type LevelUp, type Profile } from './economy.ts';
 import type { FighterMods } from './types.ts';
 import { migrateLiveops, useVipSpin, vipSpinAvailable } from './liveops.ts';
+import { remoteConfig } from './remoteconfig.ts';
 
 // =====================================================================================
 //  Progression systems layered on top of the core economy:
@@ -363,6 +364,7 @@ export function wheelState(p: Profile, today: string) {
 }
 export function spinWheel(p: Profile, today: string, viaAd: boolean, rand: () => number = Math.random): { index: number; granted: Granted } | null {
   const st = wheelState(p, today);
+  if (!remoteConfig().economy.wheelRewards) return null; // switched off by remote config
   if (viaAd ? st.ads <= 0 : !st.free) return null;
   if (viaAd) p.wheel.ads++; else if (!p.wheel.free) p.wheel.free = true; else useVipSpin(p, today);
   const total = WHEEL.reduce((a, w) => a + w.weight, 0);

@@ -1,8 +1,11 @@
 import {
   getFighter, LOGIN_REWARDS, passTier, tierFor, IAP_PRODUCTS, claimableAchievements, featureUnlocked, featureRequirement,
   claimableMilestones, claimableLeague, unreadMail, wheelState, dayKey, MAP_SIZE, romanDiv, fighterPower, adsRemoved, vipCanClaim, claimableMastery,
-  type FeatureId, type QueueFormat,
+  activeMotd, remoteConfig, type FeatureId, type QueueFormat,
 } from '@nb/shared';
+import './pro.css';
+import { picon } from './proicons.ts';
+import { store } from '../services/platform.ts';
 import { backend } from '../services/backend.ts';
 import { billing } from '../services/billing.ts';
 import { net } from '../net/net.ts';
@@ -62,14 +65,27 @@ export function homeScreen(): Screen {
   const tools = h('div', { class: 'hero-tools' },
     tool('chat', 'chat', fa ? 'چت' : 'Chat', () => import('./chat.ts').then((m) => m.openChat()), 0, 'chat'),
     tool('inbox', 'mail', fa ? 'صندوق پیام' : 'Inbox', () => progress((m) => m.inboxScreen()), mail),
-    tool('wheel', 'wheel', fa ? 'گردونه شانس' : 'Lucky wheel', () => progress((m) => m.wheelModal(() => show(homeScreen))), wheelFree ? 1 : 0, 'wheel'),
+    remoteConfig().economy.wheelRewards ? tool('wheel', 'wheel', fa ? 'گردونه شانس' : 'Lucky wheel', () => progress((m) => m.wheelModal(() => show(homeScreen))), wheelFree ? 1 : 0, 'wheel') : null,
     tool('collection', 'layers', fa ? 'کلکسیون' : 'Collection', () => import('./collection.ts').then((m) => show(() => m.collectionScreen())), 0, 'collection'),
     tool('vip', 'crown', 'VIP', () => import('./liveops.ts').then((m) => show(m.vipScreen)), vipCanClaim(p) ? 1 : 0, 'vip'),
     ...socialTools(),
+    remoteConfig().flags.replays ? (() => {
+      const label = fa ? 'بازپخش‌ها' : 'Replays';
+      return h('button', { class: 'tool', 'data-f': 'replays', title: label, 'aria-label': label, onclick: () => import('./replays.ts').then((m) => show(() => m.replaysScreen())) }, picon('film', 18));
+    })() : null,
   );
+  // message of the day from the remote config (dismissable per message)
+  const motd = activeMotd(Date.now());
+  const motdKey = motd ? `${motd.kind}:${motd.fa}:${motd.en}`.slice(0, 200) : '';
+  const motdEl = motd && store.get('motd.hide', '') !== motdKey && (fa ? motd.fa || motd.en : motd.en || motd.fa)
+    ? h('div', { class: `motd ${motd.kind}`, role: 'status' }, svg(motd.kind === 'warn' ? 'help' : motd.kind === 'event' ? 'gift' : 'mail', 15),
+      h('span', {}, fa ? motd.fa || motd.en : motd.en || motd.fa),
+      h('button', { 'aria-label': 'close', onclick: () => { store.set('motd.hide', motdKey); motdEl?.remove(); } }, svg('close', 14)))
+    : null;
 
   const hero = h('div', { class: 'hero' },
     h('div', { class: 'hero-glow' }),
+    motdEl,
     tools,
     (() => { const c = fighterCanvas(def.id, skin, 230); c.addEventListener('click', () => go('fighters')); return c; })(),
     h('div', { class: 'hero-name' }, loc(def), h('small', {}, isFa() ? def.titleFa : def.title, open('cards') ? ` · ${fa ? 'قدرت' : 'Power'} ${num(fighterPower(p, def.id))}` : '')),

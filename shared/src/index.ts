@@ -19,3 +19,6 @@ export * from './accounts.ts';
 export * from './friends.ts';
 export * from './referral.ts';
 export * from './notify.ts';
+export * from './replay.ts';
+export * from './remoteconfig.ts';
+export * from './analytics.ts';

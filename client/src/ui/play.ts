@@ -23,6 +23,9 @@ import { matchBadges, poseFor } from '@nb/shared';
 import { emoteBar, titleTag, cosChipsFor, masteryClaim } from './collection.ts';
 import { featureUnlocked } from '@nb/shared';
 import { poseCanvas } from '../game/poses.ts';
+import { newRecorder, storeLocal, storeOnline, type StoredReplay } from '../services/replays.ts';
+import { track } from '../services/analytics.ts';
+import { picon } from './proicons.ts';
 
 const home = () => show(homeScreen);
 type Replay = () => void;
@@ -45,9 +48,10 @@ function startOnline(m: Extract<ServerMsg, { t: 'match' }>) {
   const replay: Replay = lastOnline ? (() => { const lo = lastOnline!; show(() => matchmakingScreen(lo.mode, lo.format)); }) : home;
   session = new OnlineSession(m.matchId, m.cfg, m.slot, src, m.mode, (info) => {
     if (info.profile) backend.applyServerProfile(info.profile);
+    const rp = storeOnline(info.replay, m.slot);
     setTimeout(() => {
       ads.noteMatch();
-      show(() => resultsScreen(session.state, m.slot, info, { mode: m.mode as any, replay, online: true, reward: info.reward }));
+      show(() => resultsScreen(session.state, m.slot, info, { mode: m.mode as any, replay, online: true, reward: info.reward, rec: rp }));
     }, 1200);
   });
   show(() => gameScreen(session, { online: true, onRenderer: (r) => (renderer = r) }));
@@ -205,10 +209,12 @@ export function startCpuMatch(o: { fighter?: string; skin?: number; trial?: bool
   sources[0] = new MergedSource(p1);
   const cfg: MatchConfig = { stageId: stage, stocks: o.stocks ?? 3, timeLimit: 0, teams: !!o.teams, players };
   const session = new LocalSession(cfg, sources, bots);
+  session.recorder = newRecorder(session.state);
   const replay: Replay = () => startCpuMatch(o);
   show(() => gameScreen(session, {
     online: false, trialSlot: o.trial ? 0 : undefined,
     onLocalEnd: async (state) => {
+      const rec = storeLocal(session.recorder, state, 'cpu');
       ads.noteMatch();
       const f = state.fighters[0];
       const place = placements(state);
@@ -219,7 +225,7 @@ export function startCpuMatch(o: { fighter?: string; skin?: number; trial?: bool
         kos: f.stats.kos, falls: f.stats.falls, dmg: f.stats.dmgDealt, smashKOs: f.stats.smashKOs, maxCombo: f.stats.maxCombo, fighter, durationSec,
       }).catch(() => null);
       if (social().demo) social().matchPlayed(won, f.stats.kos);
-      show(() => resultsScreen(state, 0, { winnerTeam: state.winnerTeam, placements: place, stats: state.fighters.map((x) => x.stats) }, { mode: 'cpu', replay, online: false, reward: reward ?? undefined }));
+      show(() => resultsScreen(state, 0, { winnerTeam: state.winnerTeam, placements: place, stats: state.fighters.map((x) => x.stats) }, { mode: 'cpu', replay, online: false, reward: reward ?? undefined, rec }));
     },
   }));
 }
@@ -242,9 +248,11 @@ export function startMapNode(i: number) {
   });
   const cfg: MatchConfig = { stageId: node.stage, stocks: node.stocks, timeLimit: 0, teams, players };
   const session = new LocalSession(cfg, sources, bots);
+  session.recorder = newRecorder(session.state);
   show(() => gameScreen(session, {
     online: false,
     onLocalEnd: async (state) => {
+      const rec = storeLocal(session.recorder, state, 'map');
       ads.noteMatch();
       const f = state.fighters[0];
       const place = placements(state);
@@ -256,7 +264,7 @@ export function startMapNode(i: number) {
       }).catch(() => ({ reward: null, map: null }));
       if (social().demo) social().matchPlayed(won, f.stats.kos);
       show(() => resultsScreen(state, 0, { winnerTeam: state.winnerTeam, placements: place, stats: state.fighters.map((x) => x.stats) },
-        { mode: 'cpu', replay: () => startMapNode(i), online: false, reward: res.reward ?? undefined, map: res.map ? { node: i, clear: res.map } : undefined }));
+        { mode: 'cpu', replay: () => startMapNode(i), online: false, reward: res.reward ?? undefined, map: res.map ? { node: i, clear: res.map } : undefined, rec }));
     },
   }));
   if (i === 0) introOnce('map-fight', [{ title: { fa: 'اولین نبرد نقشه', en: 'First map battle' }, text: { fa: 'حریف را از صحنه بیرون بینداز. بدون سقوط ببری ۳ ستاره می‌گیری!', en: 'Knock your foe off the stage. Win without falling for 3 stars!' } }], session);
@@ -274,20 +282,25 @@ export function startRaidFight(f: RaidFight, after: () => void) {
     ],
   };
   const session = new LocalSession(cfg, [playerSource(true), null], [null, f.foe.lv]);
+  session.recorder = newRecorder(session.state);
   show(() => gameScreen(session, {
     online: false,
     onLocalEnd: async (state) => {
+      const rec = storeLocal(session.recorder, state, 'raid');
+      track('match_end', 'raid');
       const me = state.fighters[0], foe = state.fighters[1];
       const res = { won: state.winnerTeam === me.team, falls: me.stats.falls, kos: me.stats.kos, durationSec: Math.max(0, state.endFrame - COUNTDOWN) / TICK_RATE, dmg: me.stats.dmgDealt };
       void foe;
-      let stars = 0;
+      let stars = 0, watching = false;
       try { stars = (await social().raidReport(f.id, res)).stars; } catch (e) { toast(isFa() ? 'نتیجه ثبت نشد' : 'Result not accepted', 'err'); console.warn(e); }
       const m = modal(h('div', { class: 'raid-result' },
         h('h2', { class: 'title-grad' }, res.won ? (isFa() ? 'پیروزی!' : 'Victory!') : (isFa() ? 'شکست' : 'Defeat')),
         h('span', { class: 'stars big' }, [1, 2, 3].map((k) => h('i', { class: k <= stars ? 'on' : '' }))),
         h('small', { class: 'muted' }, isFa() ? 'برد = ۱ ستاره · بدون سقوط +۱ · زیر ۲ دقیقه +۱' : 'Win = 1 star · no falls +1 · under 2 minutes +1'),
-        h('button', { class: 'btn primary big', onclick: () => { m.close(); } }, isFa() ? 'برگشت به حمله' : 'Back to the raid'),
-      ), { onClose: after });
+        h('div', { class: 'row' },
+          rec ? h('button', { class: 'btn big res-replay', onclick: () => { watching = true; m.close(); void import('./replays.ts').then((r) => r.watchStored(rec, after)); } }, picon('film', 18), isFa() ? 'بازپخش' : 'Replay') : null,
+          h('button', { class: 'btn primary big', onclick: () => m.close() }, isFa() ? 'برگشت به حمله' : 'Back to the raid')),
+      ), { onClose: () => { if (!watching) after(); } });
       void raidStars;
     },
   }));
@@ -378,6 +391,7 @@ interface GameOpts {
 
 function gameScreen(session: Session, o: GameOpts): Screen {
   inGame = true;
+  track('match_start', o.online ? 'online' : o.training ? 'training' : o.tutorial ? 'tutorial' : 'local');
   (window as any).__session = session; // handy for QA / debugging from devtools
   const canvas = h('canvas', { class: 'game-canvas' });
   const top = h('div', { class: 'game-top' });
@@ -514,7 +528,13 @@ function gameScreen(session: Session, o: GameOpts): Screen {
 // ============================================================================================
 // Results
 // ============================================================================================
-interface ResultOpts { mode: 'ranked' | 'casual' | 'private' | 'cpu'; replay: Replay; online: boolean; reward?: RewardResult; map?: { node: number; clear: MapClear } }
+interface ResultOpts {
+  mode: 'ranked' | 'casual' | 'private' | 'cpu'; replay: Replay; online: boolean; reward?: RewardResult; map?: { node: number; clear: MapClear };
+  /** the match's replay (watch button) */
+  rec?: StoredReplay;
+  /** re-shown after watching the replay: no reveals, sounds or one-time ad offers */
+  quiet?: boolean;
+}
 
 function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: ResultOpts): Screen {
   const me = state.fighters[mySlot];
@@ -550,7 +570,7 @@ function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: 
     r.unlocked?.length ? h('div', { class: 'row res-unlocked' }, h('small', { class: 'muted' }, isFa() ? 'جدید در کلکسیون:' : 'New in collection:'), ...cosChipsFor(r.unlocked)) : null,
     r.firstWin ? h('div', { class: 'tag gold' }, svg('medal', 12), t('firstWin')) : null,
     r.questsDone.length ? h('div', { class: 'tag ok' }, svg('quests', 12), t('questDone'), ` ×${num(r.questsDone.length)}`) : null,
-    r.canDouble && r.coins > 0 ? h('button', { class: 'btn ad big', onclick: async (e: Event) => {
+    r.canDouble && r.coins > 0 && !o.quiet ? h('button', { class: 'btn ad big', onclick: async (e: Event) => {
       const btn = e.currentTarget as HTMLButtonElement;
       if (!(await ads.rewarded('double'))) return;
       const id = backend.profile.lastReward?.id ?? '';
@@ -559,7 +579,8 @@ function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: 
     } }, svg('ad', 18), t('doubleCoins')) : null,
   ) : null;
 
-  if (r?.levelUps.length) setTimeout(() => rewardReveal(`${t('levelUp')} ${num(r.levelUps[r.levelUps.length - 1].level)}`,
+  if (!o.quiet) track('match_end', o.map ? 'map' : o.mode);
+  if (r?.levelUps.length && !o.quiet) setTimeout(() => rewardReveal(`${t('levelUp')} ${num(r.levelUps[r.levelUps.length - 1].level)}`,
     r.levelUps.flatMap((l) => [{ kind: 'coin' as const, amount: l.coins }, ...(l.gems ? [{ kind: 'gem' as const, amount: l.gems }] : [])])), 900);
 
   // fighter mastery level-up: claim and reveal the level rewards once the other popups are gone
@@ -574,7 +595,7 @@ function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: 
   const mapBlock = o.map && mc ? h('div', { class: 'res-map' },
     h('span', { class: 'stars big' }, [1, 2, 3].map((k) => h('i', { class: k <= mc.stars ? 'on' : '' }))),
     mc.firstClear ? h('b', { class: 'tag gold' }, isFa() ? `مرحله ${num(o.map.node + 1)} فتح شد!` : `Stage ${num(o.map.node + 1)} cleared!`) : null) : null;
-  if (mc?.granted) {
+  if (mc?.granted && !o.quiet) {
     const g = mc.granted;
     setTimeout(() => {
       rewardReveal(isFa() ? 'جایزه فتح مرحله' : 'Stage reward', grantedToItems(g));
@@ -590,13 +611,14 @@ function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: 
     h('div', { class: 'res-body' }, h('div', { class: 'res-table' }, rows), h('div', { class: 'res-side' }, mapBlock, rewards)),
     h('div', { class: 'res-actions' },
       h('button', { class: 'btn big', onclick: () => next(home) }, t('home')),
+      o.rec ? h('button', { class: 'btn big res-replay', onclick: () => import('./replays.ts').then((m) => m.watchStored(o.rec!, () => show(() => resultsScreen(state, mySlot, info, { ...o, quiet: true })))) }, picon('film', 18), isFa() ? 'بازپخش' : 'Replay') : null,
       o.map ? h('button', { class: 'btn big', onclick: () => next(() => import('./progress.ts').then((m) => show(() => m.mapScreen(o.map!.node)))) }, svg('map', 18), isFa() ? 'نقشه' : 'Map') : null,
       nextNode >= 0
         ? h('button', { class: 'btn primary big', onclick: () => next(() => startMapNode(nextNode)) }, svg('swords', 18), isFa() ? 'مرحله بعد' : 'Next stage')
         : h('button', { class: 'btn primary big', onclick: () => next(o.replay) }, svg('refresh', 18), o.map ? (isFa() ? 'دوباره' : 'Retry') : t('playAgain')),
     ),
   );
-  if (won) audio.reward();
+  if (won && !o.quiet) audio.reward();
   return { el };
 }
 

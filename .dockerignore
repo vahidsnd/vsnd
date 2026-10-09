@@ -1,0 +1,11 @@
+**/node_modules
+client/dist
+client/android
+client/ios
+client/native-shell/build
+server/data
+docs/screenshots
+.git
+.claude
+*.apk
+*.log

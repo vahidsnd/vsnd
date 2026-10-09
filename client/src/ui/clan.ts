@@ -10,6 +10,7 @@ import { svg } from './icons.ts';
 import { introOnce } from './tutorial.ts';
 import { isFa, num, loc, duration } from '../i18n.ts';
 import './social.css';
+import { watchButton } from './spectate.ts';
 
 // =============================================================================================
 //  Clan screen: browse / create / leaderboard when clanless; members, upgrades, card trades,
@@ -528,6 +529,7 @@ export function clanScreen(): Screen {
     out.push(h('div', { class: 'clan-list' }, v.members.map((m) => h('div', { class: `clan-mem ${m.id === me() ? 'me' : ''}`, onclick: () => memberSheet(v, m) },
       h('span', { class: 'clan-ava' }, fighterCanvas(m.fighter, 0, 36), h('i', { class: m.online ? 'clan-dot on' : 'clan-dot', title: m.online ? tr('online') : '' })),
       h('span', { class: 'clan-mem-main' }, h('b', {}, m.name, m.id === me() ? h('small', { class: 'muted' }, ` (${tr('you')})`) : null), roleTag(m.role)),
+      m.online && m.id !== me() ? watchButton(m.id) : null,
       h('span', { class: 'clan-mem-stats' },
         chip('trophy', num(m.mmr), tr('trophies')),
         chip('star', num(m.level), tr('level')),

@@ -1,6 +1,14 @@
 export const config = {
   port: Number(process.env.PORT ?? 8787),
   dataDir: process.env.DATA_DIR ?? new URL('../data/', import.meta.url).pathname,
+  // PostgreSQL connection string; when set it replaces the JSON file storage
+  databaseUrl: process.env.DATABASE_URL ?? '',
+  // write-behind interval for the storage adapter
+  flushMs: Number(process.env.FLUSH_MS ?? 5000),
+  // spectators: max per match and broadcast delay (anti-ghosting in clan wars)
+  spectate: { max: Number(process.env.SPECTATE_MAX ?? 20), delayMs: Number(process.env.SPECTATE_DELAY_MS ?? 3000) },
+  // online replays kept per player
+  replaysPerUser: Number(process.env.REPLAYS_PER_USER ?? 50),
   // allow unverified "sandbox" purchases (web build / local testing). NEVER enable in production.
   iapSandbox: process.env.IAP_SANDBOX === '1' || process.env.NODE_ENV !== 'production',
   googlePlay: {

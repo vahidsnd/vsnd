@@ -1,3 +1,4 @@
+import { track } from './analytics.ts';
 import { IAP_PRODUCTS, type IapProduct } from '@nb/shared';
 import { backend } from './backend.ts';
 import { isNative, MARKET } from './platform.ts';
@@ -98,7 +99,9 @@ class BillingService {
     const p = IAP_PRODUCTS.find((x) => x.id === id);
     if (!p || !this.ready) return false;
     if (!backend.online && isNative && MARKET !== 'web') return false; // purchases always need the server to verify
-    return this.provider.buy(p);
+    const ok = await this.provider.buy(p);
+    if (ok) track('purchase', p.id);
+    return ok;
   }
 }
 

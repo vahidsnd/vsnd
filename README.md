@@ -28,15 +28,21 @@ Tests: `npm test` (sim/economy/progression unit tests + server end-to-end: match
 | var | meaning |
 |---|---|
 | `PORT` | default 8787 |
-| `ADMIN_KEY` | enables `/api/admin/staff` and `/api/admin/promo` (header `x-admin-key`) to create the first admin and promo codes |
+| `ADMIN_KEY` | enables the operator panel at `/admin` and `/api/admin/*` (header `x-admin-key`): stats, remote config, promo codes, broadcasts, first admin |
 | `WAR_BOT_AFTER_MS` | clans searching for a war this long get a computer rival (default 300000) |
 | `UNLOCK_ALL` | `1` skips world-map gating (testing only) |
 | `DATA_DIR` | JSON database directory (default `server/data`) |
+| `DATABASE_URL` | PostgreSQL connection string; replaces the JSON file when set (`npm run migrate:pg --workspace server` copies an existing JSON store) |
+| `FLUSH_MS` | write-behind interval (default 5000) |
+| `SPECTATE_MAX`, `SPECTATE_DELAY_MS` | spectators per match (20) and broadcast delay (3000 ms) |
+| `REPLAYS_PER_USER` | online replays kept per player (50) |
 | `NODE_ENV=production` | disables sandbox purchases |
 | `GP_PACKAGE`, `GP_SERVICE_ACCOUNT` | Google Play package + service-account JSON (Android Publisher API) |
 | `MYKET_PACKAGE`, `MYKET_ACCESS_TOKEN` | Myket package + developer API token (`MYKET_VERIFY_URL` to override the endpoint) |
 
-Put it behind HTTPS (nginx/Caddy) — native builds need `https://` / `wss://`.
+Put it behind HTTPS (nginx/Caddy) — native builds need `https://` / `wss://`. Production guide (Persian: Ubuntu VPS, Docker Compose or pm2, Caddy, backups): [docs/DEPLOY.md](docs/DEPLOY.md). `docker compose up -d --build` runs server + PostgreSQL + Caddy.
+
+Storage contract tests run against PostgreSQL too when `DATABASE_URL` is set: `DATABASE_URL=postgresql://… node --import tsx --test server/test/storage.test.ts`.
 
 ## Android builds
 

@@ -3,10 +3,13 @@ import type { WebSocket } from 'ws';
 import {
   applyMatch, botInput, createBrain, createGame, eloDelta, encodeFighters, encodeMeta, encodeProjectiles,
   placements, step, SNAPSHOT_EVERY, TICK_RATE, COUNTDOWN, trackLeague, warReport, clanOf, addWeekResult, INPUT_MASK, flagCheat, ownsEmoteNet,
+  ReplayRecorder, encodeReplay, forfeitSlot,
   type BotBrain, type GameEvent, type GameState, type MatchConfig, type MatchEndInfo, type ServerMsg,
 } from '@nb/shared';
 import { markDirty, socialCtx, type UserRec } from './db.ts';
 import { notifyClan } from './sockets.ts';
+import { SpecFeed } from './spectate.ts';
+import { storeMatchReplay } from './replays.ts';
 
 export type MatchMode = 'ranked' | 'casual' | 'private';
 
@@ -42,9 +45,15 @@ export class Match {
   private events: GameEvent[] = [];
   private endTicks = -1;
   finished = false;
+  createdAt = Date.now();
+  /** authoritative input log → replay */
+  private rec: ReplayRecorder;
+  /** delayed snapshot feed for spectators */
+  spec = new SpecFeed(this);
 
   constructor(public mode: MatchMode, public cfg: MatchConfig, public seats: Seat[]) {
     this.state = createGame(cfg);
+    this.rec = new ReplayRecorder(cfg);
   }
 
   start() {
@@ -98,8 +107,8 @@ export class Match {
   forfeit(user: UserRec) {
     const slot = this.seats.findIndex((x) => x.user === user);
     if (slot < 0) return;
-    const f = this.state.fighters[slot];
-    f.stocks = 0; f.action = 'dead';
+    this.rec.mark(this.state.frame, slot);
+    forfeitSlot(this.state, slot);
     this.seats[slot].bot = null;
     this.seats[slot].queue = [];
   }
@@ -122,6 +131,7 @@ export class Match {
       if (next) { seat.ack = next[0]; seat.lastBits = next[1]; }
       inputs[slot] = seat.lastBits;
     });
+    this.rec.push(inputs);
     step(this.state, inputs);
     this.events.push(...this.state.events);
     if (this.state.frame % SNAPSHOT_EVERY === 0 || this.state.over) this.broadcast();
@@ -143,6 +153,7 @@ export class Match {
       if (!s.ws) continue;
       send(s.ws, { t: 'snap', f: this.state.frame, ack: s.ack, d, p, m, ev });
     }
+    this.spec.snap({ t: 'snap', f: this.state.frame, ack: 0, d, p, m, ev });
   }
 
   private finish() {
@@ -155,6 +166,10 @@ export class Match {
     const place = placements(st);
     const durationSec = Math.max(0, (st.endFrame || st.frame) - COUNTDOWN) / TICK_RATE;
     const stats = st.fighters.map((f) => f.stats);
+    const replay = this.rec.build({ id: this.id, at: Date.now(), mode: this.mode, slot: -1, winnerTeam: st.winnerTeam, placements: place, online: true });
+    const replayCode = encodeReplay(replay);
+    void storeMatchReplay(replay, replayCode, this.seats.flatMap((s, slot) => (s.user ? [{ uid: s.user.profile.id, slot }] : [])));
+    this.spec.end(st.winnerTeam, place);
 
     // Elo per human seat: opponent rating = average of enemies
     const deltas = this.seats.map((seat, i) => {
@@ -191,7 +206,7 @@ export class Match {
         if (warReport(ctx, p.id, won, f.stats.kos)) { const c = clanOf(ctx.db, p.id); if (c) notifyClan(c.id, 'war'); }
       }
       markDirty();
-      const info: MatchEndInfo = { winnerTeam: st.winnerTeam, placements: place, stats, reward, mmrDelta, profile: p };
+      const info: MatchEndInfo = { winnerTeam: st.winnerTeam, placements: place, stats, reward, mmrDelta, profile: p, replay: replayCode };
       send(seat.ws, { t: 'end', info });
       if (matchByUser.get(p.id) === this) matchByUser.delete(p.id);
     });

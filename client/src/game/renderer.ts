@@ -49,6 +49,8 @@ export class Renderer {
   ctx: CanvasRenderingContext2D;
   w = 0; h = 0; dpr = 1;
   cam = { x: 0, y: -150, z: 1 };
+  /** px reserved at the bottom by overlay UI (replay transport bar): the HUD and camera sit above it */
+  bottomInset = 0;
   private particles: Particle[] = [];
   private shake = 0;
   private flashes: number[] = [0, 0, 0, 0];
@@ -180,9 +182,10 @@ export class Renderer {
   }
 
   // ---- camera ---------------------------------------------------------------------------
-  private updateCamera(state: GameState, stage: StageDef, instant: boolean) {
+  private updateCamera(state: GameState, stage: StageDef, instant: boolean, follow?: number) {
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const f of state.fighters) {
+    const tracked = follow !== undefined && state.fighters[follow] && state.fighters[follow].action !== 'dead' ? [state.fighters[follow]] : state.fighters;
+    for (const f of tracked) {
       if (f.action === 'dead' || f.stocks <= 0) continue;
       const fx = Math.max(stage.blast.left + 150, Math.min(stage.blast.right - 150, f.x));
       const fy = Math.max(stage.blast.top + 150, Math.min(stage.blast.bottom - 60, f.y));
@@ -190,11 +193,11 @@ export class Renderer {
     }
     if (!isFinite(minX)) { minX = stage.main.x1; maxX = stage.main.x2; minY = -200; maxY = 0; }
     const portrait = this.portrait;
-    if (!portrait) { minX = Math.min(minX, stage.main.x1 * 0.5); maxX = Math.max(maxX, stage.main.x2 * 0.5); }
+    if (!portrait && tracked === state.fighters) { minX = Math.min(minX, stage.main.x1 * 0.5); maxX = Math.max(maxX, stage.main.x2 * 0.5); }
     maxY = Math.max(maxY, stage.main.y + 40);
     // the HUD covers the bottom strip, keep the action above it
     const hud = this.hudHeight();
-    const viewH = this.h - hud;
+    const viewH = this.h - hud - this.bottomInset;
     const padX = portrait ? 90 : 200, padY = portrait ? 130 : 170;
     const bw = maxX - minX + padX * 2, bh = maxY - minY + padY * 2;
     const base = this.baseScale;
@@ -213,12 +216,13 @@ export class Renderer {
   private hudHeight() { return this.portrait ? 64 : Math.min(90, this.h * 0.2); }
 
   // ---- main draw ---------------------------------------------------------------------------
-  draw(state: GameState, opts: { localSlots: number[]; time: number; names?: boolean; instantCam?: boolean; training?: boolean; ping?: number }) {
+  /** follow = camera tracks only that slot (replays); hud = false hides the HUD (replays / spectating) */
+  draw(state: GameState, opts: { localSlots: number[]; time: number; names?: boolean; instantCam?: boolean; training?: boolean; ping?: number; follow?: number; hud?: boolean }) {
     const { ctx } = this;
     if (this.canvas.clientWidth !== this.w || this.canvas.clientHeight !== this.h) this.resize();
     if (!this.w || !this.h) return;
     const stage = getStage(state.cfg.stageId);
-    this.updateCamera(state, stage, !!opts.instantCam);
+    this.updateCamera(state, stage, !!opts.instantCam, opts.follow);
 
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.drawBackground(stage, opts.time);
@@ -260,11 +264,11 @@ export class Renderer {
     this.drawParticles();
     ctx.restore();
 
-    this.drawOffscreen(state);
+    if (opts.hud !== false) this.drawOffscreen(state);
     if (this.flashScreen > 0.01) {
       ctx.fillStyle = `rgba(255,255,255,${this.flashScreen})`; ctx.fillRect(0, 0, this.w, this.h); this.flashScreen *= 0.85;
     }
-    this.drawHud(state, opts);
+    if (opts.hud !== false) this.drawHud(state, opts);
   }
 
   /** Training aid: hurtboxes (yellow) and active hitboxes (red). */
@@ -1919,7 +1923,7 @@ export class Renderer {
   // ---- HUD -----------------------------------------------------------------------------------------
   private drawOffscreen(state: GameState) {
     const { ctx } = this;
-    const bottom = this.h - this.hudHeight() - 8;
+    const bottom = this.h - this.hudHeight() - 8 - this.bottomInset;
     for (const f of state.fighters) {
       if (f.action === 'dead' || f.stocks <= 0) continue;
       const sx = (f.x - this.cam.x) * this.cam.z + this.w / 2;
@@ -1945,7 +1949,7 @@ export class Renderer {
     const cardW = Math.min(220, (this.w - 12 - gap * (n - 1)) / n);
     const total = n * cardW + (n - 1) * gap;
     let x0 = (this.w - total) / 2;
-    const y0 = this.h - H - 6;
+    const y0 = this.h - H - 6 - this.bottomInset;
     const pr = Math.min(H * 0.42, cardW * 0.24);           // portrait radius
     const big = Math.round(Math.min(H * 0.48, cardW * 0.22)); // damage font size
     const showName = cardW > 96;

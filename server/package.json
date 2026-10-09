@@ -5,13 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts"
+    "start": "tsx src/index.ts",
+    "migrate:pg": "tsx scripts/json-to-pg.ts"
   },
   "dependencies": {
     "@nb/shared": "*",
     "ws": "^8.18.2"
   },
   "devDependencies": {
+    "@types/pg": "^8.23.1",
     "@types/ws": "^8.18.1"
+  },
+  "optionalDependencies": {
+    "pg": "^8.23.1"
   }
 }

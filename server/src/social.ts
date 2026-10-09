@@ -5,7 +5,7 @@ import {
   reportPlayer, ROLE_RANK, setStaff, SocialError, staffRole, warCancel, warScore, warSearch, warTick, warVsBot,
   clanView as clanViewShared, type Clan, type FeatureId, type Profile,
   raidDeclare, raidFightEnd, raidFightStart, raidFortify, raidHelp, raidSetLineup, raidTargets, raidTick, raidView, raidWithdraw,
-  allianceLeaderboard, settleWeek, weekId, weekWindow, weekStats, rankWeek, leagueBreak, type FightResult,
+  remoteConfig, allianceLeaderboard, settleWeek, weekId, weekWindow, weekStats, rankWeek, leagueBreak, type FightResult,
 } from '@nb/shared';
 import { config } from './config.ts';
 import { allProfiles, markDirty, socialCtx, socialDb, userById, type UserRec } from './db.ts';
@@ -91,7 +91,7 @@ export const socialRoutes: Record<string, Handler> = {
   'POST /api/clan/ally/request': (b, u) => { const r = need(u); run(() => allyRequest(ctx(), r.profile, String(b.id))); notifyClan(String(b.id), 'ally'); return after(r); },
   'POST /api/clan/ally/respond': (b, u) => { const r = need(u); run(() => allyRespond(ctx(), r.profile, String(b.id), !!b.accept)); notifyClan(String(b.id), 'ally'); return after(r); },
   'POST /api/clan/ally/break': (b, u) => { const r = need(u); run(() => allyBreak(ctx(), r.profile, String(b.id))); notifyClan(String(b.id), 'ally'); return after(r); },
-  'POST /api/clan/war/search': (_b, u) => { const r = need(u); gate(r.profile, 'clanwar'); run(() => warSearch(ctx(), r.profile)); return after(r); },
+  'POST /api/clan/war/search': (_b, u) => { const r = need(u); gate(r.profile, 'clanwar'); if (!remoteConfig().events.clanWars) throw new HttpError(403, 'event-off'); run(() => warSearch(ctx(), r.profile)); return after(r); },
   'POST /api/clan/war/cancel': (_b, u) => { const r = need(u); run(() => warCancel(ctx(), r.profile)); return after(r); },
   'GET /api/clan/leaderboard': () => ({ top: clanLeaderboard(socialDb(), 50) }),
   'GET /api/alliance/leaderboard': () => ({ top: allianceLeaderboard(socialDb(), 30) }),
@@ -109,6 +109,7 @@ export const socialRoutes: Record<string, Handler> = {
   'POST /api/raid/targets': (b, u) => { const r = need(u); return { targets: run(() => raidTargets(ctx(), r.profile, String(b.q ?? ''))) }; },
   'POST /api/raid/declare': (b, u) => {
     const r = need(u); gate(r.profile, 'clanwar');
+    if (!remoteConfig().events.raids) throw new HttpError(403, 'event-off');
     const raid = run(() => raidDeclare(ctx(), r.profile, String(b.target), Number(b.start)));
     notifyClan(raid.att, 'raid'); notifyClan(raid.def, 'raid');
     return { raid };

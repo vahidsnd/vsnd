@@ -26,6 +26,13 @@ export function dequeue(user: UserRec) {
   }
 }
 
+/** tickets waiting per queue ("ranked:1v1" → n) for the admin panel */
+export function queueSizes() {
+  const out: Record<string, number> = {};
+  for (const [k, l] of queues) out[k] = l.length;
+  return out;
+}
+
 export function queuedCount() {
   let n = 0;
   for (const l of queues.values()) n += l.length;

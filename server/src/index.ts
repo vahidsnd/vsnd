@@ -10,9 +10,11 @@ import { socketsByUser } from './sockets.ts';
 import { socialTick } from './social.ts';
 import { presenceOffline, presenceOnline, startAccountsTick } from './accounts.ts';
 import { activeMatches, matchByUser, send } from './match.ts';
+import { serveAdminPage } from './admin.ts';
+import { spectate, spectatorCount, stopSpectating } from './spectate.ts';
 import { dequeue, enqueue, inMatch, matchmakeTick, queuedCount, roomCreate, roomJoin, roomLeave, roomStart, roomUpdate } from './matchmaker.ts';
 
-loadDb();
+await loadDb();
 
 // Serves the built web client (client/dist) when present so one process can host everything.
 const staticDir = path.resolve(new URL('../../client/dist', import.meta.url).pathname);
@@ -20,6 +22,7 @@ const MIME: Record<string, string> = { '.html': 'text/html', '.js': 'text/javasc
 
 const server = http.createServer(async (req, res) => {
   if (await handleApi(req, res)) return;
+  if (serveAdminPage(req, res)) return;
   const url = new URL(req.url ?? '/', 'http://x');
   let file = path.join(staticDir, decodeURIComponent(url.pathname));
   if (!file.startsWith(staticDir)) { res.writeHead(403).end(); return; }
@@ -66,9 +69,12 @@ wss.on('connection', (ws) => {
       case 'room_update': roomUpdate(user, msg); break;
       case 'room_start': roomStart(user); break;
       case 'room_leave': roomLeave(user); break;
+      case 'spectate': spectate(user, ws, String(msg.matchId)); break;
+      case 'spectate_stop': stopSpectating(ws); break;
     }
   });
   ws.on('close', () => {
+    stopSpectating(ws);
     if (!user) return;
     if (socketsByUser.get(user.profile.id) === ws) { socketsByUser.delete(user.profile.id); presenceOffline(user.profile.id); }
     dequeue(user);
@@ -81,7 +87,7 @@ setInterval(matchmakeTick, 1000).unref();
 setInterval(socialTick, 30_000).unref();
 startAccountsTick();
 setInterval(() => {
-  console.log(`[stats] online=${socketsByUser.size} queued=${queuedCount()} matches=${activeMatches.size}`);
+  console.log(`[stats] online=${socketsByUser.size} queued=${queuedCount()} matches=${activeMatches.size} spectators=${spectatorCount()}`);
 }, 60_000).unref();
 
 server.listen(config.port, () => console.log(`Neon Brawl server on :${config.port} (iapSandbox=${config.iapSandbox})`));

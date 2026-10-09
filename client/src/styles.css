@@ -453,3 +453,8 @@ input[type=range] { accent-color: var(--accent); flex: 1; min-width: 100px; }
   .res-body { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* custom touch layout (Settings → Controls → layout editor): buttons positioned in px by TouchControls.applyLayout */
+.touch.custom .tbtns { inset: 0; width: auto; height: auto; transform: none; }
+.touch.custom .tb { right: auto !important; bottom: auto !important; }
+.touch.custom .stick-zone { right: auto; bottom: auto; }

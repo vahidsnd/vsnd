@@ -1,6 +1,6 @@
 import { Btn } from '@nb/shared';
 import { haptic } from '../services/platform.ts';
-import { prefs } from '../services/prefs.ts';
+import { prefs, type CtlLayout, type CtlPos } from '../services/prefs.ts';
 import { t } from '../i18n.ts';
 import { svgHtml } from '../ui/icons.ts';
 
@@ -65,6 +65,23 @@ export class GamepadSource implements InputSource {
   destroy() {}
 }
 
+/** Base sizes (px, before the size preference) of the touch buttons; keys match the .tb-* classes. */
+export const TOUCH_BUTTONS: Record<string, { size: number; font?: number }> = {
+  attack: { size: 80, font: 26 }, special: { size: 64, font: 22 }, jump: { size: 64 }, shield: { size: 52 }, grab: { size: 50 }, smash: { size: 50 }, magic: { size: 50 },
+};
+
+let safeProbe: HTMLDivElement | null = null;
+/** Current safe-area insets (notch / rounded corners) in px. */
+export function safeInsets() {
+  if (!safeProbe) {
+    safeProbe = document.createElement('div');
+    safeProbe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-left:var(--safe-l);padding-right:var(--safe-r);padding-bottom:var(--safe-b)';
+    document.body.appendChild(safeProbe);
+  }
+  const cs = getComputedStyle(safeProbe);
+  return { l: parseFloat(cs.paddingLeft) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0 };
+}
+
 /** Mobile on-screen controls: floating joystick on the left, action buttons on the right. */
 export class TouchControls implements InputSource {
   label = 'touch';
@@ -74,26 +91,35 @@ export class TouchControls implements InputSource {
   private latch = 0;
   private knob: HTMLDivElement;
   private base: HTMLDivElement;
+  readonly lefty: boolean;
+  layout: CtlLayout | null;
+  private onResize = () => this.applyLayout();
 
-  constructor(parent: HTMLElement) {
+  /** editor = static preview for the layout editor (no input handling) */
+  constructor(parent: HTMLElement, opts: { editor?: boolean; layout?: CtlLayout | null } = {}) {
+    this.lefty = prefs.leftHanded;
+    this.layout = opts.layout !== undefined ? opts.layout : prefs.layout;
     this.el = document.createElement('div');
-    this.el.className = prefs.leftHanded ? 'touch lefty' : 'touch';
+    this.el.className = this.lefty ? 'touch lefty' : 'touch';
     this.el.style.setProperty('--s', String(prefs.btnScale));
     this.el.style.setProperty('--o', String(prefs.btnOpacity));
     this.el.innerHTML = `
       <div class="stick-zone"><div class="stick-base"><div class="stick-knob"></div></div></div>
       <div class="tbtns">
-        <button data-b="${Btn.SHIELD}" class="tb tb-shield">${svgHtml('shield', 22)}</button>
-        <button data-b="${Btn.GRAB}" class="tb tb-grab">${svgHtml('grab', 22)}</button>
-        <button data-b="${Btn.STRONG}" class="tb tb-smash">${svgHtml('zap', 22)}</button>
-        <button data-b="${Btn.MAGIC}" class="tb tb-magic">${svgHtml('sparkles', 22)}</button>
-        <button data-b="${Btn.JUMP}" class="tb tb-jump"><span>${svgHtml('up', 22)}<small>${t('btnJump')}</small></span></button>
-        <button data-b="${Btn.SPECIAL}" class="tb tb-special"><span>B<small>${t('btnSpecial')}</small></span></button>
-        <button data-b="${Btn.ATTACK}" class="tb tb-attack"><span>A<small>${t('btnAttack')}</small></span></button>
+        <button data-b="${Btn.SHIELD}" data-k="shield" class="tb tb-shield">${svgHtml('shield', 22)}</button>
+        <button data-b="${Btn.GRAB}" data-k="grab" class="tb tb-grab">${svgHtml('grab', 22)}</button>
+        <button data-b="${Btn.STRONG}" data-k="smash" class="tb tb-smash">${svgHtml('zap', 22)}</button>
+        <button data-b="${Btn.MAGIC}" data-k="magic" class="tb tb-magic">${svgHtml('sparkles', 22)}</button>
+        <button data-b="${Btn.JUMP}" data-k="jump" class="tb tb-jump"><span>${svgHtml('up', 22)}<small>${t('btnJump')}</small></span></button>
+        <button data-b="${Btn.SPECIAL}" data-k="special" class="tb tb-special"><span>B<small>${t('btnSpecial')}</small></span></button>
+        <button data-b="${Btn.ATTACK}" data-k="attack" class="tb tb-attack"><span>A<small>${t('btnAttack')}</small></span></button>
       </div>`;
     parent.appendChild(this.el);
     this.base = this.el.querySelector('.stick-base') as HTMLDivElement;
     this.knob = this.el.querySelector('.stick-knob') as HTMLDivElement;
+    addEventListener('resize', this.onResize);
+    this.applyLayout();
+    if (opts.editor) { this.el.classList.add('editing'); return; }
     const zone = this.el.querySelector('.stick-zone') as HTMLDivElement;
 
     zone.addEventListener('pointerdown', (e) => {
@@ -136,6 +162,58 @@ export class TouchControls implements InputSource {
     });
   }
 
+  /**
+   * Places buttons and the stick zone from a custom layout (fractions of the arena, mirrored
+   * for left-handed play), clamped inside the screen's safe area. No layout = CSS default.
+   */
+  applyLayout(layout: CtlLayout | null = this.layout) {
+    this.layout = layout;
+    const el = this.el;
+    const btns = el.querySelectorAll<HTMLElement>('.tb');
+    const zone = el.querySelector('.stick-zone') as HTMLElement;
+    if (!layout) {
+      el.classList.remove('custom');
+      btns.forEach((b) => { b.style.left = b.style.top = b.style.width = b.style.height = b.style.fontSize = ''; });
+      zone.style.left = zone.style.top = zone.style.width = zone.style.height = zone.style.right = zone.style.bottom = '';
+      return;
+    }
+    el.classList.add('custom');
+    const W = el.clientWidth || innerWidth, H = el.clientHeight || innerHeight;
+    const safe = safeInsets();
+    const minX = safe.l + 2, maxX = W - safe.r - 2, maxY = H - safe.b - 2;
+    btns.forEach((b) => {
+      const k = b.dataset.k!, def = TOUCH_BUTTONS[k], pos = layout.btn[k];
+      if (!def || !pos) return;
+      const size = Math.round(def.size * prefs.btnScale * clamp(pos.s, 0.6, 1.8));
+      const fx = this.lefty ? 1 - pos.x : pos.x;
+      const cx = clamp(fx * W, minX + size / 2, maxX - size / 2);
+      const cy = clamp(pos.y * H, 2 + size / 2, maxY - size / 2);
+      Object.assign(b.style, { left: `${cx - size / 2}px`, top: `${cy - size / 2}px`, width: `${size}px`, height: `${size}px`, fontSize: def.font ? `${Math.round(def.font * size / def.size)}px` : '' });
+    });
+    const st = layout.stick;
+    const w = clamp(st.w, 0.12, 0.9) * W, h = clamp(st.h, 0.15, 1) * H;
+    const fx = this.lefty ? 1 - st.x - st.w : st.x;
+    const x = clamp(fx * W, minX, Math.max(minX, maxX - w)), y = clamp(st.y * H, 0, Math.max(0, H - h));
+    Object.assign(zone.style, { left: `${x}px`, top: `${y}px`, width: `${Math.min(w, maxX - minX)}px`, height: `${Math.min(h, H)}px`, right: 'auto', bottom: 'auto' });
+  }
+
+  /** The layout currently on screen in layout form (measures the CSS default when none is set). */
+  measure(): CtlLayout {
+    const r0 = this.el.getBoundingClientRect();
+    const W = r0.width || 1, H = r0.height || 1;
+    const mx = (x: number) => (this.lefty ? 1 - x : x);
+    const btn: Record<string, CtlPos> = {};
+    this.el.querySelectorAll<HTMLElement>('.tb').forEach((b) => {
+      const k = b.dataset.k!, def = TOUCH_BUTTONS[k];
+      const r = b.getBoundingClientRect();
+      if (!def || !r.width) return;
+      btn[k] = { x: mx((r.left + r.width / 2 - r0.left) / W), y: (r.top + r.height / 2 - r0.top) / H, s: Math.round((r.width / (def.size * prefs.btnScale)) * 100) / 100 };
+    });
+    const z = (this.el.querySelector('.stick-zone') as HTMLElement).getBoundingClientRect();
+    const zx = (z.left - r0.left) / W, zw = z.width / W;
+    return { v: 1, btn, stick: { x: this.lefty ? 1 - zx - zw : zx, y: (z.top - r0.top) / H, w: zw, h: z.height / H } };
+  }
+
   read() {
     let b = 0;
     const { x, y } = this.stick;
@@ -147,8 +225,10 @@ export class TouchControls implements InputSource {
     b |= this.latch; this.latch = 0;
     return b;
   }
-  destroy() { this.el.remove(); }
+  destroy() { removeEventListener('resize', this.onResize); this.el.remove(); }
 }
+
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 export const isTouch = () => matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 

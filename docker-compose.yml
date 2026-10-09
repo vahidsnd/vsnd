@@ -1,0 +1,59 @@
+# Production-like stack: game server + PostgreSQL (+ optional Caddy for HTTPS).
+#   cp .env.example .env   # set ADMIN_KEY, POSTGRES_PASSWORD, DOMAIN
+#   docker compose up -d --build
+# Full guide (Persian): docs/DEPLOY.md
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: neonbrawl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: neonbrawl
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neonbrawl"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  game:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 8787
+      DATA_DIR: /data
+      DATABASE_URL: postgresql://neonbrawl:${POSTGRES_PASSWORD}@db:5432/neonbrawl
+      ADMIN_KEY: ${ADMIN_KEY:?set ADMIN_KEY in .env}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      MYKET_ACCESS_TOKEN: ${MYKET_ACCESS_TOKEN:-}
+      GP_SERVICE_ACCOUNT: ${GP_SERVICE_ACCOUNT:-}
+      SPECTATE_DELAY_MS: ${SPECTATE_DELAY_MS:-3000}
+    volumes:
+      - gamedata:/data
+    # only Caddy talks to the game server; for a quick test without Caddy use "8787:8787"
+    expose:
+      - "8787"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [game]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    command: caddy reverse-proxy --from ${DOMAIN} --to game:8787
+    volumes:
+      - caddydata:/data
+
+volumes:
+  pgdata:
+  gamedata:
+  caddydata:

@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Neon Brawl Admin</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f3f2ef; --surface-1: #fcfcfb; --surface-2: #ffffff; --line: #e2e0da; --grid: #ecebe6;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7c7a74;
+  --series-1: #2a78d6; --accent: #7a3cff; --good: #0a7d3c; --warn: #9a6400; --bad: #c42f2f;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #222220; --line: #33322f; --grid: #2a2a28;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --series-1: #3987e5; --accent: #a88bff; --good: #3ccf7d; --warn: #e7b23f; --bad: #ff7272;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #222220; --line: #33322f; --grid: #2a2a28;
+  --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+  --series-1: #3987e5; --accent: #a88bff; --good: #3ccf7d; --warn: #e7b23f; --bad: #ff7272;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--surface-0); color: var(--text-primary); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Vazirmatn, sans-serif; }
+header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: var(--surface-1); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 17px; margin: 0; letter-spacing: .3px; }
+header .grow { flex: 1; }
+main { padding: 16px 20px 40px; max-width: 1400px; margin: 0 auto; display: grid; gap: 16px; }
+.card { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; min-width: 0; }
+.card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--text-secondary); margin: 0 0 10px; font-weight: 650; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.tile { background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.tile small { color: var(--text-secondary); display: block; font-size: 12px; }
+.tile b { font-size: 26px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.tile span { color: var(--text-muted); font-size: 12px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; }
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: start; padding: 5px 6px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { color: var(--text-secondary); font-weight: 600; font-size: 12px; }
+td.n, th.n { text-align: end; }
+.scroll { max-height: 300px; overflow: auto; }
+.muted { color: var(--text-muted); }
+.pill { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: 11px; border: 1px solid var(--line); color: var(--text-secondary); }
+.pill.bad { color: var(--bad); border-color: currentColor; } .pill.good { color: var(--good); border-color: currentColor; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 7px 14px; cursor: pointer; font-weight: 600; }
+button.ghost { background: transparent; color: var(--text-primary); border: 1px solid var(--line); }
+button:disabled { opacity: .5; cursor: default; }
+input, select, textarea { background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; min-width: 0; }
+textarea { width: 100%; min-height: 54px; resize: vertical; }
+label.f { display: grid; gap: 3px; font-size: 12px; color: var(--text-secondary); }
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; align-items: end; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.msg { font-size: 12px; min-height: 16px; } .msg.ok { color: var(--good); } .msg.err { color: var(--bad); }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: 150px; overflow: visible; }
+.chart .axis { fill: var(--text-muted); font-size: 10px; }
+.chart .gridline { stroke: var(--grid); stroke-width: 1; }
+.chart .bar { fill: var(--series-1); }
+.chart .hit { fill: transparent; cursor: crosshair; }
+.chart .hit:hover + .bar, .chart .bar.on { opacity: .75; }
+.tip { position: absolute; pointer-events: none; background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; font-size: 12px; box-shadow: 0 4px 14px #0003; white-space: nowrap; display: none; z-index: 3; }
+.tip b { font-variant-numeric: tabular-nums; }
+#login { max-width: 360px; margin: 12vh auto; }
+#login .card { display: grid; gap: 10px; }
+.cfg-group { border: 1px solid var(--grid); border-radius: 8px; padding: 8px 10px; }
+.cfg-group h3 { margin: 0 0 6px; font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .5px; }
+.cfg-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0; font-size: 13px; }
+.cfg-row input[type=number] { width: 90px; }
+.cfg-row .def { color: var(--text-muted); font-size: 11px; }
+.hidden { display: none !important; }
+button.lang { min-width: 44px; }
+html[dir=rtl] .tile b, html[dir=rtl] td.n, html[dir=rtl] .chart { direction: ltr; }
+html[dir=rtl] td.n, html[dir=rtl] th.n { text-align: left; }
+</style>
+</head>
+<body>
+<div id="login">
+  <div class="card">
+    <h2 data-t="Neon Brawl · Admin">Neon Brawl · Admin</h2>
+    <label class="f"><span data-t="Admin key (ADMIN_KEY)">Admin key (ADMIN_KEY)</span><input id="key" type="password" autocomplete="current-password"></label>
+    <button id="loginBtn" data-t="Sign in">Sign in</button>
+    <div class="msg err" id="loginMsg"></div>
+    <button class="ghost lang" data-lang-toggle style="justify-self:start">EN</button>
+  </div>
+</div>
+<div id="app" class="hidden">
+  <header>
+    <h1 data-t="Neon Brawl · Admin">Neon Brawl · Admin</h1>
+    <span class="pill" id="storage"></span>
+    <span class="muted" id="updated"></span>
+    <span class="grow"></span>
+    <label class="row muted" style="font-size:12px"><input type="checkbox" id="auto" checked> <span data-t="auto-refresh">auto-refresh</span></label>
+    <button class="ghost lang" data-lang-toggle>EN</button>
+    <button class="ghost" id="refresh" data-t="Refresh">Refresh</button>
+    <button class="ghost" id="logout" data-t="Sign out">Sign out</button>
+  </header>
+  <main>
+    <section class="tiles" id="tiles"></section>
+    <section class="grid3" id="charts"></section>
+    <section class="grid2">
+      <div class="card"><h2 data-t="Retention (cohorts, last 60 days)">Retention (cohorts, last 60 days)</h2><div class="tiles" id="retention"></div>
+        <div class="scroll" style="margin-top:10px"><table id="retTable"></table></div></div>
+      <div class="card"><h2 data-t="Revenue by product">Revenue by product</h2><div class="scroll"><table id="revenue"></table></div><div class="muted" id="revTotals" style="margin-top:8px"></div></div>
+    </section>
+    <section class="grid2">
+      <div class="card"><h2 data-t="Top players">Top players</h2><div class="scroll"><table id="top"></table></div></div>
+      <div class="card"><h2 data-t="Flagged by anti-cheat">Flagged by anti-cheat</h2><div class="scroll"><table id="flagged"></table></div></div>
+    </section>
+    <section class="grid2">
+      <div class="card"><h2 data-t="Recent reports">Recent reports</h2><div class="scroll"><table id="reports"></table></div></div>
+      <div class="card"><h2 data-t="Client events (last 7 days)">Client events (last 7 days)</h2><div class="scroll"><table id="events"></table></div></div>
+    </section>
+    <section class="grid2">
+      <div class="card"><h2 data-t="Remote config">Remote config</h2><div id="cfg" style="display:grid;gap:10px"></div>
+        <div class="row" style="margin-top:10px"><button id="cfgSave" data-t="Save config">Save config</button><button class="ghost" id="cfgReset" data-t="Reset to defaults">Reset to defaults</button><span class="msg" id="cfgMsg"></span></div></div>
+      <div class="card"><h2 data-t="Promo codes">Promo codes</h2>
+        <div class="form">
+          <label class="f"><span data-t="Code">Code</span><input id="pCode" placeholder="NOWRUZ1405" style="text-transform:uppercase"></label>
+          <label class="f"><span data-t="Coins">Coins</span><input id="pCoins" type="number" min="0"></label>
+          <label class="f"><span data-t="Gems">Gems</span><input id="pGems" type="number" min="0"></label>
+          <label class="f"><span data-t="Runes">Runes</span><input id="pRunes" type="number" min="0"></label>
+          <label class="f"><span data-t="Max uses">Max uses</span><input id="pMax" type="number" min="1" value="1000"></label>
+          <label class="f"><span data-t="Days valid">Days valid</span><input id="pDays" type="number" min="0" value="14"></label>
+          <label class="f"><span data-t="Min level">Min level</span><input id="pLvl" type="number" min="0" value="0"></label>
+          <button id="pCreate" data-t="Create code">Create code</button>
+        </div>
+        <div class="msg" id="pMsg"></div>
+        <div class="scroll"><table id="promos"></table></div>
+      </div>
+    </section>
+    <section class="card"><h2 data-t="Broadcast mail (in-game inbox of every player)">Broadcast mail (in-game inbox of every player)</h2>
+      <div class="form">
+        <label class="f"><span data-t="Title (fa)">Title (fa)</span><input id="mTitleFa" dir="rtl"></label>
+        <label class="f"><span data-t="Title (en)">Title (en)</span><input id="mTitle"></label>
+        <label class="f"><span data-t="Coins">Coins</span><input id="mCoins" type="number" min="0"></label>
+        <label class="f"><span data-t="Gems">Gems</span><input id="mGems" type="number" min="0"></label>
+        <label class="f"><span data-t="Runes">Runes</span><input id="mRunes" type="number" min="0"></label>
+        <label class="f"><span data-t="Min level">Min level</span><input id="mLvl" type="number" min="0" value="0"></label>
+      </div>
+      <div class="form" style="margin-top:10px">
+        <label class="f"><span data-t="Body (fa)">Body (fa)</span><textarea id="mBodyFa" dir="rtl"></textarea></label>
+        <label class="f"><span data-t="Body (en)">Body (en)</span><textarea id="mBody"></textarea></label>
+      </div>
+      <div class="row" style="margin-top:10px"><button id="mSend" data-t="Send to all players">Send to all players</button><span class="msg" id="mMsg"></span></div>
+      <div class="scroll" style="margin-top:8px"><table id="broadcasts"></table></div>
+    </section>
+  </main>
+</div>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString('en-US'));
+  const pct = (r) => (r == null ? '—' : (r * 100).toFixed(1) + '%');
+  const date = (t) => (t ? `<bdi dir="ltr">${new Date(t).toISOString().replace('T', ' ').slice(0, 16)}</bdi>` : '—');
+  const ltr = (s) => `<bdi dir="ltr">${esc(s)}</bdi>`;
+  const FA = {"Neon Brawl · Admin": "نئون براول · مدیریت","Admin key (ADMIN_KEY)": "کلید مدیریت (ADMIN_KEY)","Sign in": "ورود","auto-refresh": "به‌روزرسانی خودکار","Refresh": "به‌روزرسانی","Sign out": "خروج","Retention (cohorts, last 60 days)": "ماندگاری (گروه‌های نصب، ۶۰ روز اخیر)","Revenue by product": "درآمد به تفکیک محصول","Top players": "برترین بازیکن‌ها","Flagged by anti-cheat": "مشکوک از نظر ضد تقلب","Recent reports": "گزارش‌های اخیر","Client events (last 7 days)": "رویدادهای کلاینت (۷ روز اخیر)","Remote config": "تنظیمات از راه دور","Save config": "ذخیره تنظیمات","Reset to defaults": "بازگشت به پیش‌فرض","Promo codes": "کدهای هدیه","Code": "کد","Coins": "سکه","Gems": "الماس","Runes": "رون","Max uses": "حداکثر استفاده","Days valid": "روز اعتبار","Min level": "حداقل سطح","Create code": "ساخت کد","Broadcast mail (in-game inbox of every player)": "پیام همگانی (صندوق پیام همه بازیکن‌ها)","Title (fa)": "عنوان (فارسی)","Title (en)": "عنوان (انگلیسی)","Body (fa)": "متن (فارسی)","Body (en)": "متن (انگلیسی)","Send to all players": "ارسال به همه بازیکن‌ها","Online now": "آنلاین الان","spectating": "تماشاگر","Matches running": "مسابقه در جریان","queues": "صف‌ها","empty": "خالی","Daily active (today)": "کاربر فعال (امروز)","accounts": "حساب","Installs (today)": "نصب (امروز)","new guest accounts": "حساب مهمان تازه","Ads watched (30 d)": "تبلیغ دیده‌شده (۳۰ روز)","all time": "از ابتدا","Revenue (30 d)": "درآمد (۳۰ روز)","toman": "تومان","Daily active users": "کاربران فعال روزانه","Installs": "نصب","Matches finished": "مسابقه تمام‌شده","Ads watched": "تبلیغ دیده‌شده","Revenue (USD markets)": "درآمد (بازارهای دلاری)","Revenue (Myket)": "درآمد (مایکت)","30 days": "۳۰ روز","total": "جمع","per day": "در روز","retention": "ماندگاری","weighted over cohorts": "میانگین وزنی گروه‌ها","Install day": "روز نصب","Product": "محصول","Purchases": "خرید","Price (Play / Myket)": "قیمت (پلی / مایکت)","All time": "از ابتدا","by market": "به تفکیک بازار","Player": "بازیکن","Rating": "امتیاز","W / L": "برد / باخت","Level": "سطح","Score": "امتیاز تقلب","Last flags": "آخرین موارد","Status": "وضعیت","banned": "مسدود","rewards withheld": "جایزه قطع","watch": "زیر نظر","When": "زمان","Target": "هدف","Reason": "دلیل","By": "گزارش‌دهنده","open": "باز","done": "انجام شد","Event": "رویداد","Count": "تعداد","Reward": "جایزه","Uses": "استفاده","Expires": "انقضا","never": "هرگز","Enable": "فعال","Disable": "غیرفعال","Sent": "ارسال","Title": "عنوان","Recipients": "گیرنده","Nothing yet": "هنوز چیزی نیست","storage": "ذخیره‌سازی","updated": "به‌روز شده","economy": "اقتصاد","events": "رویدادها","flags": "قابلیت‌ها","default": "پیش‌فرض","Message of the day (home banner)": "پیام روز (بنر صفحه اصلی)","Persian": "فارسی","English": "انگلیسی","Kind": "نوع","Show until (empty = always)": "نمایش تا (خالی = همیشه)","Saved — clients pick it up on next launch": "ذخیره شد — بازیکن‌ها در اجرای بعدی دریافت می‌کنند","Created": "ساخته شد","Sent to": "ارسال شد به","players": "بازیکن","Wrong key": "کلید اشتباه است","Send this mail to every player?": "این پیام برای همه بازیکن‌ها فرستاده شود؟","Drop every override?": "همه تغییرات پاک شود؟"};
+  // Persian first (like the game); the choice is remembered per browser
+  let lang = 'fa';
+  try { lang = localStorage.getItem('nbAdminLang') || 'fa'; } catch {}
+  const t = (s) => (lang === 'fa' && FA[s]) || s;
+  function applyLang() {
+    document.documentElement.lang = lang; document.documentElement.dir = lang === 'fa' ? 'rtl' : 'ltr';
+    document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = t(el.dataset.t); });
+    document.querySelectorAll('[data-lang-toggle]').forEach((b) => { b.textContent = lang === 'fa' ? 'EN' : 'فا'; });
+  }
+  document.querySelectorAll('[data-lang-toggle]').forEach((b) => b.onclick = () => {
+    lang = lang === 'fa' ? 'en' : 'fa'; try { localStorage.setItem('nbAdminLang', lang); } catch {}
+    applyLang(); if (data) { render(); renderConfig(); }
+  });
+  let key = sessionStorage.getItem('nbAdminKey') || '';
+  let data = null, timer = 0;
+
+  async function call(method, path, body) {
+    const r = await fetch(path, { method, headers: { 'content-type': 'application/json', 'x-admin-key': key }, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+    return j;
+  }
+
+  async function login() {
+    key = $('key').value.trim() || key;
+    try {
+      data = await call('GET', '/api/admin/stats');
+      sessionStorage.setItem('nbAdminKey', key);
+      $('login').classList.add('hidden'); $('app').classList.remove('hidden');
+      render(); renderConfig();
+      clearInterval(timer); timer = setInterval(() => { if ($('auto').checked) refresh(); }, 15000);
+    } catch (e) { $('loginMsg').textContent = e.message === 'admin' ? t('Wrong key') : e.message; sessionStorage.removeItem('nbAdminKey'); }
+  }
+  async function refresh() { try { data = await call('GET', '/api/admin/stats'); render(); } catch (e) { if (e.message === 'admin') location.reload(); } }
+
+  // ---- charts: one series each, so the title names it (no legend); hover shows the value ----
+  function barChart(title, rows, get, unit) {
+    const W = 360, H = 150, L = 34, B = 18, T = 6;
+    const vals = rows.map(get);
+    const max = Math.max(1, ...vals);
+    const nice = (() => { const p = Math.pow(10, Math.floor(Math.log10(max))); const m = max / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; })();
+    const bw = (W - L) / rows.length;
+    let g = '';
+    for (let i = 0; i <= 2; i++) {
+      const v = (nice / 2) * i, y = H - B - ((H - B - T) * v) / nice;
+      g += `<line class="gridline" x1="${L}" x2="${W}" y1="${y}" y2="${y}"/><text class="axis" x="${L - 4}" y="${y + 3}" text-anchor="end">${fmt(v)}</text>`;
+    }
+    rows.forEach((r, i) => {
+      const v = vals[i], h = ((H - B - T) * v) / nice, x = L + i * bw + 1, w = Math.max(1, bw - 2), y = H - B - h;
+      const r4 = Math.min(4, w / 2, h);
+      const path = h > 0 ? `M${x},${H - B} V${y + r4} Q${x},${y} ${x + r4},${y} H${x + w - r4} Q${x + w},${y} ${x + w},${y + r4} V${H - B} Z` : '';
+      g += `<rect class="hit" x="${L + i * bw}" y="${T}" width="${bw}" height="${H - B - T}" data-i="${i}"/>`;
+      if (path) g += `<path class="bar" d="${path}" data-i="${i}"/>`;
+      if ((i % 7 === 0 && rows.length - 1 - i >= 4) || i === rows.length - 1) g += `<text class="axis" x="${L + i * bw + bw / 2}" y="${H - 4}" text-anchor="middle">${r.day.slice(5)}</text>`;
+    });
+    const total = vals.reduce((a, b) => a + b, 0);
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `<h2>${esc(t(title))} <span class="muted" style="text-transform:none;letter-spacing:0">· ${t('30 days')} · ${t('total')} ${fmt(total)}${unit ? ' ' + t(unit) : ''}</span></h2>
+      <div class="chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(t(title))} ${t('per day')}">${g}</svg><div class="tip"></div></div>`;
+    const tip = card.querySelector('.tip'), chart = card.querySelector('.chart');
+    card.querySelectorAll('.hit').forEach((el) => {
+      el.addEventListener('mousemove', (ev) => {
+        const i = +el.dataset.i, rc = chart.getBoundingClientRect();
+        tip.innerHTML = `${rows[i].day}<br><b>${fmt(vals[i])}</b>${unit ? ' ' + t(unit) : ''}`;
+        tip.style.display = 'block';
+        const x = ev.clientX - rc.left;
+        tip.style.left = Math.min(rc.width - tip.offsetWidth, Math.max(0, x - tip.offsetWidth / 2)) + 'px';
+        tip.style.top = '-8px';
+        card.querySelectorAll('.bar').forEach((b) => b.classList.toggle('on', +b.dataset.i === i));
+      });
+      el.addEventListener('mouseleave', () => { tip.style.display = 'none'; card.querySelectorAll('.bar.on').forEach((b) => b.classList.remove('on')); });
+    });
+    return card;
+  }
+
+  function table(id, head, rows) {
+    $(id).innerHTML = `<thead><tr>${head.map((h) => `<th class="${h.endsWith('#') ? 'n' : ''}">${esc(t(h.replace(/#$/, '')))}</th>`).join('')}</tr></thead>
+      <tbody>${rows.length ? rows.map((r) => `<tr>${r.map((c, i) => `<td class="${head[i].endsWith('#') ? 'n' : ''}">${c}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${head.length}" class="muted">${t('Nothing yet')}</td></tr>`}</tbody>`;
+  }
+
+  function render() {
+    const d = data, s = d.series, last = s[s.length - 1] || {};
+    $('storage').textContent = t('storage') + ': ' + d.storage;
+    $('updated').textContent = t('updated') + ' ' + new Date(d.now).toLocaleTimeString(lang === 'fa' ? 'fa-IR' : 'en-US');
+    const q = Object.entries(d.live.queues).map(([k, v]) => `${k} ${v}`).join(' · ') || t('empty');
+    const tile = (label, v, sub) => `<div class="tile"><small>${esc(t(label))}</small><b>${v}</b><br><span>${esc(sub || '')}</span></div>`;
+    $('tiles').innerHTML = [
+      tile('Online now', fmt(d.live.online), `${fmt(d.live.spectators)} ${t('spectating')}`),
+      tile('Matches running', fmt(d.live.matches), t('queues') + ': ' + q),
+      tile('Daily active (today)', fmt(last.dau), `${fmt(d.live.users)} ${t('accounts')}`),
+      tile('Installs (today)', fmt(last.installs), t('new guest accounts')),
+      tile('Ads watched (30 d)', fmt(d.ads.last30), `${fmt(d.ads.total)} ${t('all time')}`),
+      tile('Revenue (30 d)', `$${fmt((d.revenue.last30.usd || 0) / 100)}`, `${fmt(d.revenue.last30.toman || 0)} ${t('toman')}`),
+    ].join('');
+    const ch = $('charts'); ch.innerHTML = '';
+    ch.append(
+      barChart('Daily active users', s, (r) => r.dau),
+      barChart('Installs', s, (r) => r.installs),
+      barChart('Matches finished', s, (r) => r.matches),
+      barChart('Ads watched', s, (r) => r.ads),
+      barChart('Revenue (USD markets)', s, (r) => Math.round(r.revenueUsdCents / 100), '$'),
+      barChart('Revenue (Myket)', s, (r) => r.revenueToman, 'toman'),
+    );
+    $('retention').innerHTML = ['d1', 'd7', 'd30'].map((k) => `<div class="tile"><small>${k.toUpperCase()} ${t('retention')}</small><b>${pct(d.retention[k])}</b><br><span>${t('weighted over cohorts')}</span></div>`).join('');
+    table('retTable', ['Install day', 'Installs#', 'D1#', 'D7#', 'D30#'], s.slice().reverse().filter((r) => r.installs).map((r) => [r.day, fmt(r.installs), pct(r.d1), pct(r.d7), pct(r.d30)]));
+    table('revenue', ['Product', 'Purchases#', 'Price (Play / Myket)'], Object.entries(d.revenue.byProduct).sort((a, b) => b[1] - a[1])
+      .map(([id, n]) => [esc(id), fmt(n), esc(d.revenue.prices[id] ? `${d.revenue.prices[id].googleplay} / ${d.revenue.prices[id].myket}` : '')]));
+    $('revTotals').textContent = `${t('All time')}: $${fmt((d.revenue.totals.usd || 0) / 100)} · ${fmt(d.revenue.totals.toman || 0)} ${t('toman')} · ${t('by market')}: ${Object.entries(d.revenue.byMarket).map(([k, v]) => k + ' ' + v).join(', ') || '—'}`;
+    table('top', ['#', 'Player', 'Rating#', 'W / L#', 'Level#'], d.topPlayers.map((p) => [p.pos, `${esc(p.name)} <span class="muted">${esc(p.id)}</span>`, fmt(p.mmr), `${fmt(p.wins)} / ${fmt(p.losses)}`, fmt(p.level)]));
+    table('flagged', ['Player', 'Score#', 'Last flags', 'Status'], d.flagged.map((f) => [`${esc(f.name)}<br><span class="muted">${esc(f.id)}</span>`, f.score, f.flags.map((x) => `<span class="pill">${esc(x.kind)}</span> ${esc(x.detail)}`).join('<br>'), f.banned ? `<span class="pill bad">${t('banned')}</span>` : f.score >= 10 ? `<span class="pill bad">${t('rewards withheld')}</span>` : `<span class="pill">${t('watch')}</span>`]));
+    table('reports', ['When', 'Target', 'Reason', 'By', 'Status'], d.reports.map((r) => [date(r.t), `${esc(r.targetName)}<br><span class="muted">${esc(r.text || '')}</span>`, esc(r.reason), esc(r.byName), r.status === 'open' ? `<span class="pill bad">${t('open')}</span>` : `<span class="pill good">${esc(r.action || t('done'))}</span>`]));
+    table('events', ['Event', 'Count#'], Object.entries(d.events).sort((a, b) => b[1] - a[1]).slice(0, 60).map(([k, v]) => [esc(k), fmt(v)]));
+    table('promos', ['Code', 'Reward', 'Uses#', 'Expires', ''], d.promos.map((p) => [`<b>${esc(p.code)}</b>`, ltr(JSON.stringify(p.reward)), `${fmt(p.uses)} / ${fmt(p.maxUses)}`, p.expires ? date(p.expires) : t('never'),
+      `<button class="ghost" data-promo="${esc(p.code)}" data-off="${p.off ? 0 : 1}">${p.off ? t('Enable') : t('Disable')}</button>`]));
+    $('promos').querySelectorAll('button[data-promo]').forEach((b) => b.onclick = async () => { await call('POST', '/api/admin/promo/toggle', { code: b.dataset.promo, off: b.dataset.off === '1' }); refresh(); });
+    table('broadcasts', ['Sent', 'Title', 'Recipients#', 'Reward'], d.broadcasts.map((b) => [date(b.t), esc(b.title), fmt(b.recipients), b.reward ? ltr(JSON.stringify(b.reward)) : '']));
+  }
+
+  // ---- remote config editor: one control per known key, defaults shown beside it ----
+  function renderConfig() {
+    const c = data.config, def = data.defaults, box = $('cfg');
+    box.innerHTML = '';
+    for (const group of ['economy', 'events', 'flags']) {
+      const g = document.createElement('div'); g.className = 'cfg-group';
+      g.innerHTML = `<h3>${t(group)}</h3>` + Object.keys(def[group]).map((k) => {
+        const v = c[group][k], dv = def[group][k];
+        const input = typeof dv === 'boolean' ? `<input type="checkbox" data-g="${group}" data-k="${k}" ${v ? 'checked' : ''}>` : `<input type="number" step="0.05" data-g="${group}" data-k="${k}" value="${v}">`;
+        return `<div class="cfg-row"><span>${k} <span class="def">${t('default')} ${dv}</span></span>${input}</div>`;
+      }).join('');
+      box.append(g);
+    }
+    const m = c.motd || { fa: '', en: '', kind: 'info', until: 0 };
+    const g = document.createElement('div'); g.className = 'cfg-group';
+    g.innerHTML = `<h3>${t('Message of the day (home banner)')}</h3>
+      <div class="form"><label class="f">${t('Persian')}<textarea id="motdFa" dir="rtl">${esc(m.fa)}</textarea></label><label class="f">${t('English')}<textarea id="motdEn">${esc(m.en)}</textarea></label></div>
+      <div class="form" style="margin-top:8px"><label class="f">${t('Kind')}<select id="motdKind">${['info', 'event', 'warn'].map((k) => `<option ${k === m.kind ? 'selected' : ''}>${k}</option>`).join('')}</select></label>
+      <label class="f">${t('Show until (empty = always)')}<input id="motdUntil" type="datetime-local" value="${m.until ? new Date(m.until - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}"></label></div>`;
+    box.append(g);
+  }
+  async function saveConfig(reset) {
+    const o = {};
+    if (!reset) {
+      for (const el of $('cfg').querySelectorAll('input[data-g]')) {
+        (o[el.dataset.g] ??= {})[el.dataset.k] = el.type === 'checkbox' ? el.checked : Number(el.value);
+      }
+      const fa = $('motdFa').value.trim(), en = $('motdEn').value.trim(), until = $('motdUntil').value;
+      o.motd = fa || en ? { fa, en, kind: $('motdKind').value, until: until ? new Date(until).getTime() : 0 } : null;
+    }
+    try {
+      const r = await call('POST', '/api/admin/config', { overrides: o });
+      $('cfgMsg').className = 'msg ' + (r.errors.length ? 'err' : 'ok');
+      $('cfgMsg').textContent = r.errors.length ? r.errors.join('; ') : t('Saved — clients pick it up on next launch');
+      data.config = r.config; renderConfig();
+    } catch (e) { $('cfgMsg').className = 'msg err'; $('cfgMsg').textContent = e.message; }
+  }
+
+  const reward = (c, g, r) => { const o = {}; if (+$(c).value) o.coins = +$(c).value; if (+$(g).value) o.gems = +$(g).value; if (+$(r).value) o.runes = +$(r).value; return o; };
+  async function createPromo() {
+    try {
+      await call('POST', '/api/admin/promo', { code: $('pCode').value, reward: reward('pCoins', 'pGems', 'pRunes'), maxUses: +$('pMax').value || 1000, days: +$('pDays').value || 0, minLevel: +$('pLvl').value || 0 });
+      $('pMsg').className = 'msg ok'; $('pMsg').textContent = t('Created'); refresh();
+    } catch (e) { $('pMsg').className = 'msg err'; $('pMsg').textContent = e.message; }
+  }
+  async function sendMail() {
+    if (!confirm(t('Send this mail to every player?'))) return;
+    try {
+      const r = await call('POST', '/api/admin/mail', { title: $('mTitle').value, titleFa: $('mTitleFa').value, body: $('mBody').value, bodyFa: $('mBodyFa').value, reward: reward('mCoins', 'mGems', 'mRunes'), minLevel: +$('mLvl').value || 0 });
+      $('mMsg').className = 'msg ok'; $('mMsg').textContent = `${t('Sent to')} ${fmt(r.recipients)} ${t('players')}`; refresh();
+    } catch (e) { $('mMsg').className = 'msg err'; $('mMsg').textContent = e.message; }
+  }
+
+  $('loginBtn').onclick = login;
+  $('key').onkeydown = (e) => { if (e.key === 'Enter') login(); };
+  $('refresh').onclick = refresh;
+  $('logout').onclick = () => { sessionStorage.removeItem('nbAdminKey'); location.reload(); };
+  $('cfgSave').onclick = () => saveConfig(false);
+  $('cfgReset').onclick = () => { if (confirm(t('Drop every override?'))) saveConfig(true); };
+  $('pCreate').onclick = createPromo;
+  $('mSend').onclick = sendMail;
+  applyLang();
+  if (key) login();
+})();
+</script>
+</body>
+</html>

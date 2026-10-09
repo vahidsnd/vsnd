@@ -1,45 +1,60 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import crypto from 'node:crypto';
-import { newProfile, newSocialDb, refreshDaily, clanTouch, publicBadges, type Profile, type SocialCtx, type SocialDb } from '@nb/shared';
+import {
+  newProfile, newSocialDb, refreshDaily, clanTouch, newAnalyticsStore, noteActive, noteInstall, publicBadges, dayKey, mergeRemoteConfig, setRemoteConfig,
+  type Profile, type SocialCtx, type SocialDb,
+} from '@nb/shared';
 import { config } from './config.ts';
+import type { DbShape, StorageAdapter, UserRec } from './storage/adapter.ts';
+import { JsonAdapter } from './storage/json.ts';
+import { PostgresAdapter } from './storage/postgres.ts';
 
 /**
- * Tiny JSON-file persistence. Good enough for a soft launch on a single node;
- * swap for Postgres/Redis by re-implementing this module's exports.
+ * In-memory game database with write-behind persistence through a storage adapter:
+ *  - default: JSON file in DATA_DIR (single node, soft launch)
+ *  - DATABASE_URL set: PostgreSQL (batched upserts of changed rows every few seconds)
+ * Everything is loaded on start; markDirty() schedules the next flush.
  */
-interface UserRec {
-  token: string;
-  profile: Profile;
-  purchaseTokens: string[];
-  ads: { day: string; count: number };
-  cpu?: { day: string; count: number };
-  recent?: number[];
-  banned?: boolean;
-}
-
-interface DbShape { users: Record<string, UserRec>; byToken: Record<string, string>; usedPurchaseTokens: Record<string, string>; social: SocialDb }
-
-const file = path.join(config.dataDir, 'db.json');
-let db: DbShape = { users: {}, byToken: {}, usedPurchaseTokens: {}, social: newSocialDb() };
+let db: DbShape = emptyDb();
 let dirty = false;
+let saving: Promise<void> | null = null;
+let adapter: StorageAdapter;
 
-export function loadDb() {
-  fs.mkdirSync(config.dataDir, { recursive: true });
-  if (fs.existsSync(file)) db = JSON.parse(fs.readFileSync(file, 'utf8'));
-  db.social ??= newSocialDb();
-  db.social.rate = {};
-  setInterval(flush, 5000).unref();
-  process.on('SIGINT', () => { flush(); process.exit(0); });
-  process.on('SIGTERM', () => { flush(); process.exit(0); });
+function emptyDb(): DbShape {
+  return { users: {}, byToken: {}, usedPurchaseTokens: {}, social: newSocialDb(), analytics: newAnalyticsStore(), meta: {}, replayIndex: {} };
 }
 
-export function flush() {
-  if (!dirty) return;
-  const tmp = file + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(db, (k, v) => (k === 'rate' ? undefined : v)));
-  fs.renameSync(tmp, file);
+export function createAdapter(): StorageAdapter {
+  return config.databaseUrl ? new PostgresAdapter(config.databaseUrl) : new JsonAdapter(config.dataDir);
+}
+
+export async function loadDb(a: StorageAdapter = createAdapter()) {
+  adapter = a;
+  await adapter.init();
+  const loaded = await adapter.load();
+  db = { ...emptyDb(), ...(loaded ?? {}) };
+  db.social ??= newSocialDb();
+  db.analytics ??= newAnalyticsStore();
+  db.analytics.days ??= {};
+  db.meta ??= {};
+  db.replayIndex ??= {};
+  db.social.rate = {};
+  setRemoteConfig(mergeRemoteConfig(db.meta.remoteConfig ?? {}));
+  console.log(`[db] ${adapter.kind} storage, ${Object.keys(db.users).length} users`);
+  setInterval(() => { void flush(); }, config.flushMs).unref();
+  const bye = () => { flush().catch((e) => console.error('[db] final flush failed', e)).finally(() => process.exit(0)); };
+  process.on('SIGINT', bye);
+  process.on('SIGTERM', bye);
+}
+
+export function storage() { return adapter; }
+
+/** Writes pending changes (no-op when nothing changed; never overlaps itself). */
+export async function flush(): Promise<void> {
+  if (saving) { await saving; if (!dirty) return; }
+  if (!dirty || !adapter) return;
   dirty = false;
+  saving = adapter.save(db).catch((e) => { dirty = true; console.error('[db] save failed, will retry', e); }).finally(() => { saving = null; });
+  await saving;
 }
 
 export function markDirty() { dirty = true; }
@@ -49,6 +64,7 @@ export function createGuest(name?: string): UserRec {
   const token = crypto.randomBytes(24).toString('base64url');
   const nick = sanitizeName(name) || 'Player' + Math.floor(1000 + Math.random() * 9000);
   const rec: UserRec = { token, profile: newProfile(id, nick), purchaseTokens: [], ads: { day: '', count: 0 } };
+  noteInstall(db.analytics, (rec.act = {}), dayKey(Date.now()));
   db.users[id] = rec;
   db.byToken[token] = id;
   markDirty();
@@ -62,6 +78,7 @@ export function userByToken(token: string | undefined | null): UserRec | null {
   if (!u || u.banned || db.social.bans[u.profile.id]) return null;
   refreshDaily(u.profile);
   clanTouch(socialCtx(), u.profile);
+  if (noteActive(db.analytics, (u.act ??= { installDay: dayKey(u.profile.createdAt || Date.now()) }), dayKey(Date.now()))) markDirty();
   return u;
 }
 
@@ -88,6 +105,11 @@ export function sanitizeName(name?: string) {
 }
 
 export type { UserRec };
+export function dbSnapshot() { return db; }
+export function analyticsStore() { return db.analytics; }
+export function dbMeta() { return db.meta; }
+export function allUsers() { return Object.values(db.users); }
+export function replayIndex() { return db.replayIndex; }
 
 export function socialDb() { return db.social; }
 /** Context for the shared social engine: every profile is reachable on the server. */

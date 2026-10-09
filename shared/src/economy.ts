@@ -1,6 +1,7 @@
 import { FIGHTERS, getFighter } from './fighters.ts';
 import { clanBonus, migrateProgress, trackLeague, leagueSeasonRollover, MAP_SIZE, type Mail } from './progress.ts';
 import { grantLiveopsIap, liveopsAfterMatch } from './liveops.ts';
+import { matchCoinMultiplier, remoteConfig } from './remoteconfig.ts';
 
 // =====================================================================================
 //  Economy design
@@ -146,7 +147,7 @@ export function shopCatalog(): ShopItem[] {
   items.push({ id: 'coins:1000', kind: 'coins', amount: 1000, cost: { gems: 50 } });
   items.push({ id: 'coins:5000', kind: 'coins', amount: 5000, cost: { gems: 220 } });
   items.push({ id: 'coins:12000', kind: 'coins', amount: 12000, cost: { gems: 480 } });
-  items.push({ id: 'crate', kind: 'crate', cost: { gems: 90 } });
+  items.push({ id: 'crate', kind: 'crate', cost: { gems: Math.max(1, Math.round(90 * remoteConfig().economy.cratePriceMult)) } });
   return items;
 }
 
@@ -475,9 +476,9 @@ export function applyMatch(p: Profile, m: MatchSummary, now = Date.now()): Rewar
   const mult = (m.mode === 'ranked' ? 1.25 : offline ? 0.6 : 1) * (1 + bonus.coins);
   const shortGame = m.durationSec < 25; // anti-farm: very short games give little
   let coins = (m.won ? 45 : 18) + m.kos * 6 + Math.max(0, m.players - m.placement) * 5;
-  coins = Math.round(coins * mult * (shortGame ? 0.2 : 1));
+  coins = Math.round(coins * mult * (shortGame ? 0.2 : 1) * matchCoinMultiplier());
   let gems = 0;
-  let xp = Math.round(((m.won ? 60 : 35) + m.kos * 5) * (shortGame ? 0.2 : 1) * (offline ? 0.7 : 1) * (1 + bonus.xp));
+  let xp = Math.round(((m.won ? 60 : 35) + m.kos * 5) * (shortGame ? 0.2 : 1) * (offline ? 0.7 : 1) * (1 + bonus.xp) * remoteConfig().economy.matchXpMult);
   let firstWin = false;
   if (m.won && !p.daily.firstWin && !shortGame) {
     p.daily.firstWin = true; firstWin = true; coins += 100; gems += 5; xp += 50;

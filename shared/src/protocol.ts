@@ -17,7 +17,9 @@ export type ClientMsg =
   | { t: 'in'; s: number; b: number[] }   // latest input seq + last N input bits (oldest first) for redundancy
   | { t: 'forfeit' }
   | { t: 'emote'; id: number }
-  | { t: 'ping'; ts: number };
+  | { t: 'ping'; ts: number }
+  | { t: 'spectate'; matchId: string }   // watch a running match (snapshots only, delayed)
+  | { t: 'spectate_stop' };
 
 export interface RoomPlayer { name: string; fighter: string; skin: number; team: number; host: boolean; bot?: boolean }
 export interface RoomInfo { code: string; players: RoomPlayer[]; stage: string; stocks: number; teams: boolean; bots: number }
@@ -29,7 +31,12 @@ export interface MatchEndInfo {
   reward?: RewardResult;
   mmrDelta?: number;
   profile?: Profile;
+  /** replay code of the whole match (see replay.ts) */
+  replay?: string;
 }
+
+/** A running match as listed for spectators. */
+export interface LiveMatchInfo { id: string; mode: string; startedAt: number; players: { name: string; fighter: string; mmr: number; bot?: boolean; uid?: string }[]; avgMmr: number; spectators: number }
 
 export type ServerMsg =
   | { t: 'welcome'; profile: Profile; online: number }
@@ -44,7 +51,9 @@ export type ServerMsg =
   | { t: 'social'; kind: string }
   | { t: 'profile'; profile: Profile }
   | { t: 'notif'; notif: import('./notify.ts').Notif; unread: number }
-  | { t: 'error'; msg: string };
+  | { t: 'error'; msg: string }
+  | { t: 'spec'; matchId: string; cfg: MatchConfig; mode: string; delayMs: number; spectators: number }
+  | { t: 'spec_end'; matchId: string; winnerTeam: number; placements: number[] };
 
 export const PROTOCOL_VERSION = 2;
 export const SNAPSHOT_EVERY = 2;   // frames (30 Hz)

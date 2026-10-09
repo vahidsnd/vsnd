@@ -3,7 +3,7 @@ import {
   applyMatch, buyItem, claimAchievement, completeTutorial, claimFreeCrate, claimLogin, claimPass, claimQuest, doubleLastReward, getFighter,
   grantIap, IAP_PRODUCTS, MAX_REWARDED_ADS_PER_DAY, rerollQuest, dayKey, type MatchSummary,
   claimLeague, claimMail, claimMilestone, claimStarChest, clearMapNode, equipSpell, learnSpell, spinWheel, upgradeSpell, upgradeStat,
-  collectDonations, MAP_SIZE, checkSummary, flagCheat, rewardsWithheld, RateLimiter,
+  collectDonations, MAP_SIZE, checkSummary, flagCheat, rewardsWithheld, RateLimiter, remoteConfig,
 } from '@nb/shared';
 import { HttpError, need, socialRoutes } from './social.ts';
 import { liveopsRoutes } from './liveops.ts';
@@ -13,6 +13,10 @@ import { winsLeaderboard, createGuest, isPurchaseTokenUsed, leaderboard, markDir
 import { verifyGooglePlay } from './billing/googleplay.ts';
 import { verifyMyket } from './billing/myket.ts';
 import { accountRoutes } from './accounts.ts';
+import { replayRoutes } from './replays.ts';
+import { spectateRoutes } from './spectate.ts';
+import { adminRoutes } from './admin.ts';
+import { analyticsRoutes, track, trackPurchase } from './analytics.ts';
 
 type Handler = (body: any, user: UserRec | null, req: http.IncomingMessage) => Promise<unknown> | unknown;
 const apiLimit = new RateLimiter(180), redeemLimit = new RateLimiter(6), reportLimit = new RateLimiter(10);
@@ -88,7 +92,7 @@ const routes: Record<string, Handler> = {
     if (!takeAd(rec)) throw new HttpError(429, 'ad-limit');
     let granted = 0;
     if (b.placement === 'double') granted = doubleLastReward(p, String(b.matchId));
-    else if (b.placement === 'coins') { granted = 60; p.coins += granted; }
+    else if (b.placement === 'coins') { granted = Math.round(60 * remoteConfig().economy.adCoinMult); p.coins += granted; }
     markDirty();
     return { granted, profile: p };
   },
@@ -108,6 +112,7 @@ const routes: Record<string, Handler> = {
     if (!v.ok) throw new HttpError(402, 'verify-failed:' + v.reason);
     markPurchaseToken(token, rec.profile.id);
     grantIap(rec.profile, productId);
+    trackPurchase(productId, market);
     markDirty();
     return { ok: true, profile: rec.profile };
   },
@@ -176,6 +181,10 @@ const routes: Record<string, Handler> = {
   ...socialRoutes,
   ...liveopsRoutes,
   ...accountRoutes,
+  ...replayRoutes,
+  ...spectateRoutes,
+  ...analyticsRoutes,
+  ...adminRoutes,
 };
 
 function clamp(v: unknown, lo: number, hi: number) {
@@ -188,6 +197,7 @@ function takeAd(rec: UserRec): boolean {
   if (rec.ads.day !== today) rec.ads = { day: today, count: 0 };
   if (rec.ads.count >= MAX_REWARDED_ADS_PER_DAY) return false;
   rec.ads.count++;
+  track('ads');
   rec.profile.daily.ads = rec.ads.count;
   return true;
 }

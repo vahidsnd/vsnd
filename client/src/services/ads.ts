@@ -1,4 +1,5 @@
 import { adsRemoved } from '@nb/shared';
+import { track } from './analytics.ts';
 import { backend } from './backend.ts';
 import { isNative, MARKET, store } from './platform.ts';
 import { t } from '../i18n.ts';
@@ -131,11 +132,13 @@ class AdService {
 
   get available() { return this.ready; }
 
-  async rewarded(_placement: RewardedPlacement): Promise<boolean> {
+  async rewarded(placement: RewardedPlacement): Promise<boolean> {
     if (!this.ready) return false;
     try {
       await this.banner(false, true);
-      return await this.provider.rewarded();
+      const ok = await this.provider.rewarded();
+      if (ok) track('ad_watched', String(placement));
+      return ok;
     } catch (e) { console.warn('rewarded failed', e); return false; }
   }
 

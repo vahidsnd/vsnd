@@ -11,6 +11,8 @@ import { setLang, t } from './i18n.ts';
 import { initDom, show, h } from './ui/dom.ts';
 import { homeScreen } from './ui/home.ts';
 import './ui/play.ts'; // registers the global "match found" handler
+import { initRemoteConfig } from './services/remoteconfig.ts';
+import { initAnalytics, trackScreen } from './services/analytics.ts';
 
 async function boot() {
   const root = document.getElementById('app')!;
@@ -18,12 +20,15 @@ async function boot() {
   document.body.appendChild(splash);
 
   await backend.init();
+  // remote config: cached copy applies at once; wait briefly for a fresh one
+  await Promise.race([initRemoteConfig(backend.online), new Promise((r) => setTimeout(r, 1500))]);
+  initAnalytics(backend.online);
   setLang(backend.profile.settings.lang);
   audio.setSfx(backend.profile.settings.sfx);
   audio.setMusic(backend.profile.settings.music);
   if (backend.online) net.connect();
 
-  initDom(root, (screen) => { ads.banner(!!screen.bannerAd); });
+  initDom(root, (screen) => { ads.banner(!!screen.bannerAd); trackScreen(screen.el); });
   // ads & billing initialise in the background; the menu is usable immediately
   ads.init().then(() => ads.banner(true));
   billing.init();
