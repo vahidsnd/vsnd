@@ -44,3 +44,4 @@ client/android/
 client/ios/
 .env.local
 client/native-shell/build/
+.claude/worktrees/
