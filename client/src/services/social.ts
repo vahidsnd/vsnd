@@ -8,6 +8,8 @@ import {
   raidDeclare, raidFightEnd, raidFightStart, raidFortify, raidHelp, raidSetLineup, raidTargets, raidTick, raidView, raidWithdraw, raidState, raidOf, RAID,
   allianceLeaderboard, weekId, weekWindow, weekStats, rankWeek, demoRivals, awardWeek,
   type Raid, type RaidFight, type RaidView, type FightResult, type WeekEntry, type WeekStats,
+  clanBossView, bossFightStart, bossFightEnd, bossBotHit, bossAttemptsLeft, clanBossState, CLAN_BOSS,
+  type ClanBossView, type BossFight, type BossResult, type Reward,
 } from '@nb/shared';
 import { backend } from './backend.ts';
 import { store } from './platform.ts';
@@ -75,7 +77,12 @@ export interface SocialService {
   allianceLeaderboard(): Promise<AllianceRow[]>;
   winsLeaderboard(): Promise<{ pos: number; id: string; name: string; wins: number; mmr: number; fighter: string; trophies: number }[]>;
   weekStandings(): Promise<{ week: number; tier: number; top: WeekEntry[]; myPos: number; me: WeekStats }>;
+  // ---- clan co-op boss ----
+  clanBoss(): Promise<ClanBossView>;
+  bossFight(): Promise<BossFight>;
+  bossReport(fight: string, res: BossResult): Promise<BossReport>;
 }
+export type BossReport = { dmg: number; total: number; tiers: number; personal: Reward };
 export type RaidTarget = { id: string; name: string; tag: string; badge: number; level: number; members: number; power: number; trophies: number; fee: number; block: string | null };
 export type AllianceRow = ReturnType<typeof allianceLeaderboard>[number];
 
@@ -146,6 +153,13 @@ class ServerSocial implements SocialService {
   async allianceLeaderboard() { return (await this.api('GET', '/api/alliance/leaderboard')).top; }
   async winsLeaderboard() { return (await this.api('GET', '/api/leaderboard/wins')).top; }
   async weekStandings() { return this.api('GET', '/api/league/week'); }
+  async clanBoss() { return (await this.api('GET', '/api/clanboss')).boss; }
+  async bossFight() { return (await this.api('POST', '/api/clanboss/fight', {})).fight; }
+  async bossReport(fight: string, res: BossResult) {
+    const j = await this.api('POST', '/api/clanboss/report', { fight, ...res });
+    if (j.profile) backend.applyServerProfile(j.profile);
+    return j as BossReport;
+  }
 }
 
 // ---- offline demo world ---------------------------------------------------------------------------------
@@ -304,6 +318,7 @@ class DemoSocial implements SocialService {
       }
     }
     if (mine) this.tickRaids(ctx, mine);
+    if (mine) this.tickBoss(ctx, mine);
     const hadWar = !!mine?.war;
     warTick(ctx);
     if (hadWar && !mine?.war) this.changeL.forEach((f) => f('war'));
@@ -490,6 +505,20 @@ class DemoSocial implements SocialService {
       const ranked = rankWeek([...demoRivals(me.id, me.tier, now, BOT_NAMES), { id: this.me.id, name: this.me.name, pts: me.pts, w: me.w, l: me.l, t: me.t || now, tier: me.tier }]);
       return { week: me.id, tier: me.tier, top: ranked.slice(0, 50), myPos: ranked.findIndex((x) => x.id === this.me.id) + 1, me };
     });
+  }
+  clanBoss() { return this.wrap((c) => clanBossView(c, clanOf(c.db, this.me.id) ?? (() => { throw new SocialError('no-clan'); })(), this.me.id)); }
+  bossFight() { return this.wrap((c) => bossFightStart(c, this.me)); }
+  bossReport(fight: string, res: BossResult) {
+    return this.wrap((c) => { const r = bossFightEnd(c, this.me, fight, res); this.changeL.forEach((f) => f('boss')); return r; });
+  }
+  /** computer clan mates fight the weekly boss too (2 attempts a day each) */
+  private tickBoss(ctx: SocialCtx, mine: Clan) {
+    const s = clanBossState(ctx, mine.id);
+    for (const m of mine.members) {
+      if (!m.bot || Math.random() > 0.04 || bossAttemptsLeft(s, m.id, ctx.now) <= 0) continue;
+      const dmg = Math.round(CLAN_BOSS.hpMax * (0.15 + Math.random() * 0.45) * (0.6 + m.level / 40));
+      if (bossBotHit(ctx, mine, m.id, dmg)) this.changeL.forEach((f) => f('boss'));
+    }
   }
   matchPlayed(won: boolean, kos: number) {
     const c = this.ctx();

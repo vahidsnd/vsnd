@@ -2,6 +2,7 @@ import {
   CARD_REQUEST_SIZE, CLAN_CREATE_COST, CLAN_LEVEL_COST, CLAN_MAX_LEVEL, CLAN_MAX_MEMBERS, CLAN_PERKS, MAX_ALLIES, MAX_DEPUTIES, ROLE_NAMES, ROLE_RANK,
   clanBonus, getFighter,
   type CardRequest, type ClanInput, type ClanRole, type ClanSummary, type ClanView,
+  featureUnlocked,
 } from '@nb/shared';
 import { social } from '../services/social.ts';
 import { backend } from '../services/backend.ts';
@@ -433,6 +434,8 @@ export function clanScreen(): Screen {
       ),
       h('div', { class: 'row clan-headbtns' },
         h('button', { class: 'btn small primary clan-raidbtn', 'data-t': 'raid', onclick: () => import('./raid.ts').then((m) => show(m.raidScreen)) }, svg('swords', 16), h('span', { class: 'lbl' }, isFa() ? 'حمله' : 'Attack')),
+        // weekly co-op boss (ui/modes.ts)
+        featureUnlocked(backend.profile, 'clanboss') || backend.profile.dev ? h('button', { class: 'btn small gold clan-bossbtn', 'data-t': 'boss', onclick: () => import('./modes.ts').then((m) => show(m.clanBossScreen)) }, svg('skull', 16), h('span', { class: 'lbl' }, isFa() ? 'غول' : 'Boss')) : null,
         h('button', { class: 'btn small accent clan-chatbtn', 'data-t': 'chat', onclick: () => openChat('clan') }, svg('chat', 16), h('span', { class: 'lbl' }, tr('chat')))),
     );
   }

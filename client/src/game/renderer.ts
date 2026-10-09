@@ -1,7 +1,8 @@
-import { COUNTDOWN, getFighter, getStage, platformPos, TICK_RATE, type GameEvent, type GameState, type StageDef, getSpell, titleText } from '@nb/shared';
+import { COUNTDOWN, getFighter, baseFighterId, getStage, platformPos, TICK_RATE, type GameEvent, type GameState, type StageDef, getSpell, titleText } from '@nb/shared';
 import { drawFighter, drawProjectile, INK, PLAYER_COLORS, previewFighter, shade, star } from './art.ts';
 import { t, isFa } from '../i18n.ts';
 import { prefs } from '../services/prefs.ts';
+import { drawItems, drawBuffs, hudDamageText, drawBossBar, drawWave, ITEM_COLORS, ITEM_NAMES } from './modefx.ts';
 
 interface Particle {
   x: number; y: number; vx: number; vy: number; life: number; max: number;
@@ -62,6 +63,11 @@ export class Renderer {
   trialSlots = new Set<number>();
   hitstop = 0;
   showHitboxes = false;
+  /** survival: frames left of the "wave N" banner */
+  private waveBanner = 0;
+  private waveNo = 0;
+  /** co-op boss display name */
+  bossName = '';
   private get lowFx() { return prefs.quality === 'low' || this.maxDpr <= 1.05; }
 
   constructor(public canvas: HTMLCanvasElement) {
@@ -168,6 +174,15 @@ export class Renderer {
           this.shake = Math.max(this.shake, 5);
           break;
         }
+        case 'item': {
+          const col = ITEM_COLORS[e.kind as keyof typeof ITEM_COLORS] ?? '#fff';
+          this.particles.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0, max: 16, color: col, size: 26, kind: 'ring' });
+          const nm = ITEM_NAMES[e.kind as keyof typeof ITEM_NAMES];
+          if (nm) this.particles.push({ x: e.x, y: e.y - 34, vx: 0, vy: -0.8, life: 0, max: 40, color: col, size: 15, kind: 'text', text: isFa() ? nm.fa : nm.en });
+          if (!this.lowFx) for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; this.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3 - 1, life: 0, max: 16, color: col, size: 2, kind: 'spark' }); }
+          break;
+        }
+        case 'wave': this.waveBanner = 90; this.waveNo = e.wave; break;
         case 'spawn': {
           const f = state.fighters[e.slot];
           this.particles.push({ x: f.x, y: f.y - 30, vx: 0, vy: 0, life: 0, max: 24, color: PLAYER_COLORS[e.slot], size: 60, kind: 'ring' });
@@ -237,6 +252,7 @@ export class Renderer {
     ctx.translate(-this.cam.x, -this.cam.y);
 
     this.drawStage(stage, state.frame, opts.time);
+    drawItems(ctx, state, opts.time);
 
     // projectiles
     for (const p of state.projectiles) {
@@ -256,6 +272,7 @@ export class Renderer {
       if (f.action === 'hitstun' && Math.hypot(f.kx, f.ky) > 7) this.trail(draw.x, draw.y - 30, f.kx, f.ky, PLAYER_COLORS[f.slot]);
       const tag = opts.names !== false ? (opts.localSlots.includes(f.slot) && opts.localSlots.length === 1 ? (t('lang') === 'fa' ? 'تو' : 'YOU') : `P${f.slot + 1}`) : undefined;
       drawFighter(ctx, draw, displaySkin(state, f.slot), { color: PLAYER_COLORS[f.slot], time: opts.time, showTag: tag, flash: this.flashes[f.slot] });
+      drawBuffs(ctx, draw, opts.time);
       this.flashes[f.slot] = Math.max(0, (this.flashes[f.slot] ?? 0) - 0.12);
     }
     for (const o of this.offsets) if (o) { o.x *= 0.82; o.y *= 0.82; }
@@ -1932,7 +1949,7 @@ export class Renderer {
       if (sx >= -10 && sx <= this.w + 10 && sy >= -10 && sy <= bottom) continue;
       const cx = Math.max(m, Math.min(this.w - m, sx));
       const cy = Math.max(m + 40, Math.min(bottom - r, sy));
-      ctx.drawImage(this.portraitImg(f.charId, displaySkin(state, f.slot), PLAYER_COLORS[f.slot]), cx - r, cy - r, r * 2, r * 2);
+      ctx.drawImage(this.portraitImg(baseFighterId(f.charId), displaySkin(state, f.slot), PLAYER_COLORS[f.slot]), cx - r, cy - r, r * 2, r * 2);
       ctx.strokeStyle = PLAYER_COLORS[f.slot]; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
       const a = Math.atan2(sy - cy, sx - cx);
@@ -1943,7 +1960,8 @@ export class Renderer {
 
   private drawHud(state: GameState, opts: { localSlots: number[]; time: number; training?: boolean; ping?: number }) {
     const { ctx } = this;
-    const n = state.fighters.length;
+    const shown = state.sv ? state.fighters.filter((f) => f.slot === 0 || f.stocks > 0) : state.fighters;
+    const n = shown.length;
     const gap = 6;
     const H = this.hudHeight() - 8;
     const cardW = Math.min(220, (this.w - 12 - gap * (n - 1)) / n);
@@ -1953,7 +1971,7 @@ export class Renderer {
     const pr = Math.min(H * 0.42, cardW * 0.24);           // portrait radius
     const big = Math.round(Math.min(H * 0.48, cardW * 0.22)); // damage font size
     const showName = cardW > 96;
-    for (const f of state.fighters) {
+    for (const f of shown) {
       const x = x0; x0 += cardW + gap;
       const col = PLAYER_COLORS[f.slot];
       ctx.save();
@@ -1962,18 +1980,19 @@ export class Renderer {
       ctx.strokeStyle = col; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.roundRect(x, y0, cardW, H, 12); ctx.fill(); ctx.stroke();
       const pcx = x + 6 + pr, pcy = y0 + H / 2;
-      ctx.drawImage(this.portraitImg(f.charId, displaySkin(state, f.slot), col), pcx - pr, pcy - pr, pr * 2, pr * 2);
+      ctx.drawImage(this.portraitImg(baseFighterId(f.charId), displaySkin(state, f.slot), col), pcx - pr, pcy - pr, pr * 2, pr * 2);
       const tx = pcx + pr + 5;
       // damage %
       const d = f.damage;
-      const heat = Math.min(1, d / 150);
+      const hp = hudDamageText(state, f.slot);
+      const heat = hp ? Math.max(0, Math.min(1, hp.heat)) : Math.min(1, d / 150);
       const ds = this.dmgShake[f.slot] ?? 0;
       this.dmgShake[f.slot] = ds * 0.85;
       const jx = ds > 0.5 ? rnd(-ds, ds) * 0.4 : 0, jy = ds > 0.5 ? rnd(-ds, ds) * 0.4 : 0;
       ctx.font = `900 ${big}px Vazirmatn, system-ui, sans-serif`;
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
       ctx.lineWidth = 5; ctx.strokeStyle = INK;
-      const txt = f.stocks <= 0 ? '—' : `${Math.floor(d)}%`;
+      const txt = f.stocks <= 0 ? '—' : hp ? `${hp.text}${showName ? ' HP' : ''}` : `${Math.floor(d)}%`;
       const ty = y0 + H * (showName ? 0.62 : 0.72);
       ctx.strokeText(txt, tx + jx, ty + jy);
       ctx.fillStyle = `rgb(255,${Math.round(255 - heat * 200)},${Math.round(255 - heat * 230)})`;
@@ -2026,6 +2045,9 @@ export class Renderer {
       ctx.lineWidth = 5; ctx.strokeStyle = INK; ctx.strokeText(s, this.w / 2, 34);
       ctx.fillStyle = sec <= 10 ? '#ff4f6d' : '#fff'; ctx.fillText(s, this.w / 2, 34); ctx.restore();
     }
+    if (state.boss) drawBossBar(ctx, state, this.w, this.bossName || (state.cfg.players[state.boss.slot]?.name ?? ''), opts.time);
+    if (state.sv) drawWave(ctx, state, isFa() ? 'موج' : 'Wave', this.w / 2, state.timer > 0 ? 58 : 34);
+    if (this.waveBanner > 0 && state.sv) { this.waveBanner--; const k = this.waveBanner / 90; this.banner(`${isFa() ? 'موج' : 'WAVE'} ${this.waveNo}`, 0.7 + (1 - k) * 0.2, Math.min(1, k * 2)); }
     if (opts.ping !== undefined) {
       ctx.save(); ctx.font = '600 11px system-ui'; ctx.fillStyle = opts.ping < 90 ? '#3ee089' : opts.ping < 160 ? '#ffd23f' : '#ff4f6d';
       ctx.textAlign = 'center'; ctx.fillText(`${Math.round(opts.ping)} ms`, this.w / 2, 50); ctx.restore();

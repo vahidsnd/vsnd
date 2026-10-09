@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import { createBrain, FIGHTERS, STAGES, SPELLS, fighterMods, matchBadges, type MatchConfig, type QueueFormat, type QueueMode, type RoomInfo } from '@nb/shared';
+import { createBrain, FIGHTERS, STAGES, SPELLS, fighterMods, matchBadges, eventAt, eventConfig, presetRules, RULE_PRESETS, type RuleMode, type MatchConfig, type QueueFormat, type QueueMode, type RoomInfo } from '@nb/shared';
 import { config } from './config.ts';
 import type { UserRec } from './db.ts';
 import { Match, matchByUser, send, type Seat } from './match.ts';
@@ -39,7 +39,7 @@ export function queuedCount() {
   return n;
 }
 
-function ownedOrDefault(u: UserRec, fighter: string, skin: number) {
+export function ownedOrDefault(u: UserRec, fighter: string, skin: number) {
   const p = u.profile;
   const f = p.fighters.includes(fighter) ? fighter : p.fighters[0];
   const def = FIGHTERS.find((x) => x.id === f)!;
@@ -47,12 +47,12 @@ function ownedOrDefault(u: UserRec, fighter: string, skin: number) {
   return { f, sk };
 }
 
-function botSeat(mmr: number): Seat {
+export function botSeat(mmr: number): Seat {
   const level = Math.max(2, Math.min(9, Math.round((mmr - 700) / 150)));
   return { user: null, ws: null, bot: createBrain(level), queue: [], nextSeq: 0, lastBits: 0, ack: 0, dcAt: 0, mmr };
 }
 
-function humanSeat(t: { user: UserRec; ws: WebSocket }): Seat {
+export function humanSeat(t: { user: UserRec; ws: WebSocket }): Seat {
   return { user: t.user, ws: t.ws, bot: null, queue: [], nextSeq: 0, lastBits: 0, ack: 0, dcAt: 0, mmr: t.user.profile.rank.mmr };
 }
 
@@ -80,7 +80,9 @@ function launch(mode: QueueMode, format: QueueFormat, group: Ticket[]) {
     players.push({ charId: def.id, skin: Math.floor(Math.random() * 3), team: teams ? i % 2 : i, name: BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)], bot: true, mods: botMods() });
   }
   const minLevel = Math.min(...group.map((t) => t.user.profile.level));
-  const cfg: MatchConfig = { stageId: randomStage(minLevel), stocks: format === '1v1' ? 3 : 2, timeLimit: format === '1v1' ? 300 : 240, teams, players };
+  let cfg: MatchConfig = { stageId: randomStage(minLevel), stocks: format === '1v1' ? 3 : 2, timeLimit: format === '1v1' ? 300 : 240, teams, players };
+  // timed event queue: the event's rules, stages and timer (see shared/events.ts)
+  if (mode === 'event') cfg = { ...eventConfig(eventAt(Date.now()).def, Math.floor(Math.random() * 1e9), players), teams };
   new Match(mode, cfg, seats).start();
 }
 
@@ -109,13 +111,13 @@ export function matchmakeTick() {
 
 // ---- private rooms ---------------------------------------------------------------------------
 interface RoomMember { user: UserRec; ws: WebSocket; fighter: string; skin: number; team: number }
-interface Room { code: string; host: UserRec; members: RoomMember[]; stage: string; stocks: number; teams: boolean; bots: number }
+interface Room { code: string; host: UserRec; members: RoomMember[]; stage: string; stocks: number; teams: boolean; bots: number; rules?: RuleMode }
 const rooms = new Map<string, Room>();
 const roomByUser = new Map<string, Room>();
 
 function roomInfo(r: Room): RoomInfo {
   return {
-    code: r.code, stage: r.stage, stocks: r.stocks, teams: r.teams, bots: r.bots,
+    code: r.code, stage: r.stage, stocks: r.stocks, teams: r.teams, bots: r.bots, rules: r.rules,
     players: r.members.map((m) => ({ name: m.user.profile.name, fighter: m.fighter, skin: m.skin, team: m.team, host: m.user === r.host })),
   };
 }
@@ -143,7 +145,7 @@ export function roomJoin(user: UserRec, ws: WebSocket, code: string, fighter: st
   pushRoom(r);
 }
 
-export function roomUpdate(user: UserRec, u: { fighter?: string; skin?: number; team?: number; stage?: string; stocks?: number; teams?: boolean; bots?: number }) {
+export function roomUpdate(user: UserRec, u: { fighter?: string; skin?: number; team?: number; stage?: string; stocks?: number; teams?: boolean; bots?: number; rules?: string }) {
   const r = roomByUser.get(user.profile.id);
   if (!r) return;
   const m = r.members.find((x) => x.user === user)!;
@@ -156,6 +158,9 @@ export function roomUpdate(user: UserRec, u: { fighter?: string; skin?: number; 
     if (u.stage && STAGES.some((s) => s.id === u.stage)) r.stage = u.stage;
     if (u.stocks && u.stocks >= 1 && u.stocks <= 5) r.stocks = Math.round(u.stocks);
     if (typeof u.teams === 'boolean') r.teams = u.teams;
+    // custom rules: '' = classic, otherwise a preset name (shared/rules.ts)
+    if (u.rules === '') r.rules = undefined;
+    else if (typeof u.rules === 'string' && Object.hasOwn(RULE_PRESETS, u.rules)) r.rules = u.rules as RuleMode;
     if (u.bots !== undefined) r.bots = Math.max(0, Math.min(4 - r.members.length, Math.round(u.bots)));
   }
   pushRoom(r);
@@ -174,6 +179,7 @@ export function roomStart(user: UserRec) {
     players.push({ charId: def.id, skin: 0, team: r.teams ? i % 2 : i, name: 'CPU ' + (b + 1), bot: true, mods: botMods() });
   }
   const cfg: MatchConfig = { stageId: r.stage, stocks: r.stocks, timeLimit: 0, teams: r.teams, players };
+  if (r.rules) cfg.rules = presetRules(r.rules, Math.floor(Math.random() * 1e9));
   for (const m of r.members) roomByUser.delete(m.user.profile.id);
   rooms.delete(r.code);
   for (const m of r.members) send(m.ws, { t: 'room', room: null });

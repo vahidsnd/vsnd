@@ -9,6 +9,7 @@ import { handleApi } from './api.ts';
 import { socketsByUser } from './sockets.ts';
 import { socialTick } from './social.ts';
 import { presenceOffline, presenceOnline, startAccountsTick } from './accounts.ts';
+import { modesTick } from './modes.ts';
 import { activeMatches, matchByUser, send } from './match.ts';
 import { serveAdminPage } from './admin.ts';
 import { spectate, spectatorCount, stopSpectating } from './spectate.ts';
@@ -59,7 +60,8 @@ wss.on('connection', (ws) => {
         if (inMatch(user)) return;
         if (!config.unlockAll && !featureUnlocked(user.profile, msg.mode === 'ranked' ? 'ranked' : 'online')) return send(ws, { t: 'error', msg: 'locked' });
         if (msg.mode === 'ranked' && leagueBreak(Date.now())) return send(ws, { t: 'error', msg: 'league-break' });
-        enqueue({ user, ws, mode: msg.mode === 'ranked' ? 'ranked' : 'casual', format: ['1v1', '2v2', 'ffa'].includes(msg.format) ? msg.format : '1v1', fighter: String(msg.fighter), skin: Number(msg.skin) | 0 });
+        if (msg.mode === 'event' && !config.unlockAll && !featureUnlocked(user.profile, 'events')) return send(ws, { t: 'error', msg: 'locked' });
+        enqueue({ user, ws, mode: msg.mode === 'ranked' ? 'ranked' : msg.mode === 'event' ? 'event' : 'casual', format: msg.mode !== 'event' && ['1v1', '2v2', 'ffa'].includes(msg.format) ? msg.format : '1v1', fighter: String(msg.fighter), skin: Number(msg.skin) | 0 });
         break;
       case 'cancel': dequeue(user); break;
       case 'forfeit': matchByUser.get(user.profile.id)?.forfeit(user); break;
@@ -86,6 +88,7 @@ wss.on('connection', (ws) => {
 setInterval(matchmakeTick, 1000).unref();
 setInterval(socialTick, 30_000).unref();
 startAccountsTick();
+setInterval(modesTick, 2_000).unref();
 setInterval(() => {
   console.log(`[stats] online=${socketsByUser.size} queued=${queuedCount()} matches=${activeMatches.size} spectators=${spectatorCount()}`);
 }, 60_000).unref();

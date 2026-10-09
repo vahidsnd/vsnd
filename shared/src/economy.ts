@@ -613,7 +613,8 @@ export function completeTutorial(p: Profile, id: string): { coins: number; gems:
 export type FeatureId =
   | 'quests' | 'shop' | 'achievements' | 'pass' | 'crates' | 'milestones' | 'cards' | 'spells' | 'wheel'
   | 'online' | 'friends' | 'ranked' | 'clans' | 'chat' | 'clanwar'
-  | 'deals' | 'collection' | 'mastery' | 'vip';
+  | 'deals' | 'collection' | 'mastery' | 'vip'
+  | 'survival' | 'events' | 'tournament' | 'clanboss';
 /**
  * Progressive onboarding: features open up as the player plays, each with its own guided intro.
  * Everything online (quick match, league, clans, chat) opens once the whole world map is cleared.
@@ -638,6 +639,11 @@ export const FEATURES: { id: FeatureId; level?: number; matches?: number; map?: 
   { id: 'chat', map: MAP_SIZE },
   { id: 'clans', map: MAP_SIZE },
   { id: 'clanwar', map: MAP_SIZE },
+  // special modes (modes: events.ts, tournament.ts, survival.ts, clanboss.ts)
+  { id: 'survival', map: 5 },
+  { id: 'events', map: 7 },
+  { id: 'tournament', map: 10 },
+  { id: 'clanboss', map: MAP_SIZE },
 ];
 export function featureUnlocked(p: Profile, id: FeatureId) {
   const f = FEATURES.find((x) => x.id === id);

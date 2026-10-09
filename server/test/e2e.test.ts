@@ -8,7 +8,7 @@ import WebSocket from 'ws';
 
 const PORT = 18000 + Math.floor(Math.random() * 1000);
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-'));
-const srv = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], { env: { ...process.env, PORT: String(PORT), DATA_DIR: dataDir, UNLOCK_ALL: '1', ADMIN_KEY: 'test-admin', WAR_BOT_AFTER_MS: '0' }, stdio: 'pipe' });
+const srv = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], { env: { ...process.env, PORT: String(PORT), DATA_DIR: dataDir, UNLOCK_ALL: '1', ADMIN_KEY: 'test-admin', WAR_BOT_AFTER_MS: '0', TOURNEY_TEST: '1', EVENT_BOT_AFTER_MS: '300' }, stdio: 'pipe' });
 after(() => srv.kill());
 
 const base = `http://localhost:${PORT}`;
@@ -167,4 +167,115 @@ test('clans, roles, chat, war, police and promo codes', async () => {
   for (let i = 0; i < 12 && !limited; i++) limited = (await api('POST', '/api/redeem', mt, { code: 'NOPE' + i })).status === 429;
   assert.ok(limited, 'redeem attempts are rate limited');
   cm.ws.close();
+});
+
+async function admin(p: string, body: unknown = {}) {
+  const r = await fetch(base + p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-admin-key': 'test-admin' }, body: JSON.stringify(body) });
+  return { status: r.status, json: (await r.json()) as any };
+}
+
+test('event queue: the timed event rules, a bot fills in, the match counts for the event', async () => {
+  await waitUp();
+  const a = await api('POST', '/api/guest', '', { name: 'Evie' });
+  const tok = a.json.token;
+  const ev = await api('GET', '/api/event', tok);
+  assert.equal(ev.status, 200);
+  assert.ok(ev.json.event.def.id && ev.json.track.length >= 3);
+  assert.equal(ev.json.progress.played, 0);
+  const ca = client(tok);
+  await ca.open; await ca.next('welcome');
+  ca.send({ t: 'queue', mode: 'event', format: 'ffa', fighter: 'blaze', skin: 0 });
+  const q = await ca.next('queued');
+  assert.equal(q.mode, 'event');
+  assert.equal(q.format, '1v1', 'the event queue is always 1v1');
+  const m = await ca.next('match', 15000);
+  assert.equal(m.mode, 'event');
+  assert.ok(m.cfg.rules, 'event rules are sent with the match config');
+  assert.ok(ev.json.event.def.stages.includes(m.cfg.stageId));
+  assert.equal(m.cfg.players.length, 2);
+  assert.ok(m.cfg.players.some((p: any) => p.bot));
+  ca.send({ t: 'forfeit' });
+  const e = await ca.next('end', 15000);
+  assert.notEqual(e.info.winnerTeam, m.slot);
+  const after = await api('GET', '/api/event', tok);
+  assert.equal(after.json.progress.played, 1);
+  assert.equal(after.json.progress.wins, 0);
+  // nothing to claim yet
+  const cl = await api('POST', '/api/event/claim', tok, { idx: 0 });
+  assert.equal(cl.json.result, null);
+  ca.ws.close();
+});
+
+test('private room with custom rules', async () => {
+  await waitUp();
+  const a = await api('POST', '/api/guest', '', { name: 'Rules' });
+  const ca = client(a.json.token);
+  await ca.open; await ca.next('welcome');
+  ca.send({ t: 'room_create', fighter: 'blaze', skin: 0 });
+  await ca.next('room');
+  ca.send({ t: 'room_update', rules: 'nope', bots: 1 });
+  assert.equal((await ca.next('room')).room.rules, undefined, 'unknown rule sets are ignored');
+  ca.send({ t: 'room_update', rules: 'giant' });
+  assert.equal((await ca.next('room')).room.rules, 'giant');
+  ca.send({ t: 'room_start' });
+  const m = await ca.next('match');
+  assert.equal(m.cfg.rules.giant, true);
+  assert.equal(m.cfg.rules.items, true);
+  ca.ws.close();
+});
+
+test('tournament: sign-up, fee and refund, lock with bots, ready → real match, result in the bracket', async () => {
+  await waitUp();
+  const [a, b] = await Promise.all([api('POST', '/api/guest', '', { name: 'Cup A' }), api('POST', '/api/guest', '', { name: 'Cup B' })]);
+  const ta = a.json.token, tb = b.json.token;
+  for (const [t, id] of [[ta, 'ta1'], [tb, 'tb1']]) await api('POST', '/api/iap/verify', t, { market: 'web', productId: 'gems_500', purchaseToken: `sandbox-${id}` });
+  const info = await api('GET', '/api/tourney', ta);
+  assert.equal(info.json.phase, 'signup');
+  assert.equal(info.json.bracket, null);
+  const s1 = await api('POST', '/api/tourney/signup', ta, { tier: 'gems' });
+  assert.equal(s1.status, 200);
+  assert.equal(s1.json.profile.gems, 530 - 60, 'gem fee paid');
+  assert.equal(s1.json.bracket.seats.length, 1);
+  const again = await api('POST', '/api/tourney/signup', ta, { tier: 'gems' });
+  assert.equal(again.status, 400);
+  assert.equal(again.json.error, 'already');
+  const s2 = await api('POST', '/api/tourney/signup', tb, { tier: 'gems' });
+  assert.equal(s2.json.bracket.id, s1.json.bracket.id, 'second entrant joins the same bracket');
+  assert.equal(s2.json.bracket.seats.length, 2);
+  const lv = await api('POST', '/api/tourney/leave', tb);
+  assert.equal(lv.json.profile.gems, 530 - 60 + 30, 'leaving refunds half the fee');
+  // lock: bots fill the bracket, bot-vs-bot quarter-finals are simulated right away
+  const st = await admin('/api/admin/tourney/start');
+  assert.equal(st.status, 200);
+  const live = (await api('GET', '/api/tourney', ta)).json;
+  assert.equal(live.phase, 'live');
+  assert.equal(live.bracket.status, 'live');
+  assert.equal(live.bracket.seats.length, 8);
+  assert.equal(live.bracket.seats.filter((x: any) => !x.bot).length, 1);
+  assert.equal(live.bracket.rounds[0].filter((x: any) => x.status === 'done').length, 3, 'the three bot pairings are simulated');
+  assert.ok(live.bracket.mine && live.bracket.mine.foe.bot);
+  // ready → a real online tournament match against the bot
+  const ca = client(ta);
+  await ca.open; await ca.next('welcome');
+  const rd = await api('POST', '/api/tourney/ready', ta);
+  assert.equal(rd.json.started, true);
+  const m = await ca.next('match');
+  assert.equal(m.mode, 'tourney');
+  assert.equal(m.cfg.stocks, 3);
+  ca.send({ t: 'forfeit' });
+  await ca.next('end', 15000);
+  let done: any;
+  for (let i = 0; i < 20; i++) {
+    done = (await api('GET', '/api/tourney', ta)).json;
+    if (done.bracket?.round >= 1 || done.bracket?.status === 'done' || done.last) break;
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  const br = done.bracket ?? done.last;
+  const myIdx = br.seats.findIndex((x: any) => !x.bot);
+  const qf = br.rounds[0].find((x: any) => x.a === myIdx || x.b === myIdx);
+  assert.equal(qf.status, 'done');
+  assert.equal(qf.how, 'played');
+  assert.notEqual(qf.winner, myIdx, 'forfeit loses the quarter-final');
+  assert.ok(br.round >= 1, 'the round advanced');
+  ca.ws.close();
 });

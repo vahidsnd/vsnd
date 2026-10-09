@@ -1,7 +1,7 @@
 import {
   getFighter, LOGIN_REWARDS, passTier, tierFor, IAP_PRODUCTS, claimableAchievements, featureUnlocked, featureRequirement,
   claimableMilestones, claimableLeague, unreadMail, wheelState, dayKey, MAP_SIZE, romanDiv, fighterPower, adsRemoved, vipCanClaim, claimableMastery,
-  activeMotd, remoteConfig, type FeatureId, type QueueFormat,
+  activeMotd, remoteConfig, eventAt, claimableEvent, type FeatureId, type QueueFormat,
 } from '@nb/shared';
 import './pro.css';
 import { picon } from './proicons.ts';
@@ -83,10 +83,15 @@ export function homeScreen(): Screen {
       h('button', { 'aria-label': 'close', onclick: () => { store.set('motd.hide', motdKey); motdEl?.remove(); } }, svg('close', 14)))
     : null;
 
+  // running timed event (special modes: ui/modes.ts)
+  const ev = open('events') ? eventAt(Date.now()) : null;
+  const evReady = ev ? claimableEvent(p, Date.now()) : 0;
+  const evBanner = ev ? h('button', { class: 'event-banner', 'data-f': 'event', style: { '--c': ev.def.color } as any, onclick: () => arena((m) => m.eventScreen) },
+    svg(ev.def.icon, 16), h('b', {}, fa ? ev.def.nameFa : ev.def.name), h('small', {}, fa ? 'رویداد ویژه' : 'Special event'), badge(evReady)) : null;
   const hero = h('div', { class: 'hero' },
     h('div', { class: 'hero-glow' }),
     motdEl,
-    tools,
+    tools, evBanner,
     (() => { const c = fighterCanvas(def.id, skin, 230); c.addEventListener('click', () => go('fighters')); return c; })(),
     h('div', { class: 'hero-name' }, loc(def), h('small', {}, isFa() ? def.titleFa : def.title, open('cards') ? ` · ${fa ? 'قدرت' : 'Power'} ${num(fighterPower(p, def.id))}` : '')),
     h('div', { class: 'rank-pill', style: { borderColor: tier.tier.color } },
@@ -126,6 +131,7 @@ export function homeScreen(): Screen {
       mode('m-friends', 'users', t('friends'), t('friendsDesc'), () => import('./play.ts').then((m) => show(m.roomScreen)), { online: true, feature: 'friends' }),
       mode('m-cpu', 'bot', t('vsCpu'), t('vsCpuDesc'), cpu),
       mode('m-train', 'target', t('training'), t('trainingDesc'), () => import('./play.ts').then((m) => m.startTraining())),
+      mode('m-arena', 'flame', fa ? 'میدان ویژه' : 'Arena', fa ? 'رویداد، تورنمنت، بقا' : 'Events, cup, survival', () => arena((m) => m.arenaScreen), { feature: 'survival' }),
     ),
   );
 
@@ -161,6 +167,10 @@ export function homeScreen(): Screen {
   setTimeout(popups, 350);
 
   return { el, bannerAd: true };
+}
+
+function arena(pick: (m: typeof import('./modes.ts')) => () => Screen) {
+  import('./modes.ts').then((m) => show(pick(m)));
 }
 
 function progress(fn: (m: typeof import('./progress.ts')) => unknown) {

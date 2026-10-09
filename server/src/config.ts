@@ -21,7 +21,7 @@ export const config = {
     accessToken: process.env.MYKET_ACCESS_TOKEN ?? '',
   },
   matchmaking: {
-    botFillAfterMs: { casual: 15000, ranked: 30000 },
+    botFillAfterMs: { casual: 15000, ranked: 30000, event: Number(process.env.EVENT_BOT_AFTER_MS ?? 15000) } as Record<string, number>,
     mmrWindowStart: 100,
     mmrWindowGrowPerSec: 15,
   },
@@ -32,4 +32,7 @@ export const config = {
   unlockAll: process.env.UNLOCK_ALL === '1',
   // a clan searching for war this long gets a computer-run rival
   warBotAfterMs: Number(process.env.WAR_BOT_AFTER_MS ?? 5 * 60_000),
+  // weekend tournament (modes.ts): TOURNEY_TEST=1 keeps sign-ups open until /api/admin/tourney/start
+  tourneyTest: process.env.TOURNEY_TEST === '1',
+  tourneyRoundMs: Number(process.env.TOURNEY_ROUND_MS ?? 30 * 60_000),
 };

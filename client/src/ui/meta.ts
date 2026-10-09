@@ -565,7 +565,7 @@ export function settingsScreen(): Screen {
         h('button', { class: 'btn ghost', onclick: () => { resetIntros(); toast(t('tipsReset'), 'ok'); } }, svg('refresh', 16), t('resetTips')),
       ),
       h('div', { class: 'help' }, h('b', {}, t('controls')), h('p', {}, t('keyboardHelp')), h('p', { class: 'muted' }, t('gamepadHelp'))),
-      h('small', { class: 'muted' }, `ID: ${p.id} · v1.4.0 · ${backend.online ? t('online') : t('offline')}`),
+      h('small', { class: 'muted' }, `ID: ${p.id} · v1.5.0 · ${backend.online ? t('online') : t('offline')}`),
     ),
   );
   return { el };

@@ -1,5 +1,6 @@
+import { drawItemIcon } from './modefx.ts';
 import { drawSpellProjectile } from './spellfx.ts';
-import { getFighter, type FighterDef, type FighterState, type Hitbox, type ProjectileState } from '@nb/shared';
+import { getFighter, baseFighterId, fighterScale, type FighterDef, type FighterState, type Hitbox, type ProjectileState } from '@nb/shared';
 
 /**
  * Art direction: "Neon Sticker"
@@ -147,6 +148,14 @@ function attackPose(p: Pose, rest: Pose, f: FighterState, def: FighterDef) {
 export interface DrawOpts { color: string; time: number; showTag?: string; alpha?: number; flash?: number }
 
 export function drawFighter(ctx: CanvasRenderingContext2D, f: FighterState, skinIdx: number, o: DrawOpts) {
+  // match rules derive fighters ("blaze~s1.4..."): draw the base art, scaled around the feet
+  if (f.charId.includes('~')) {
+    const sc = fighterScale(f.charId);
+    ctx.save(); ctx.translate(f.x, f.y); ctx.scale(sc, sc);
+    drawFighter(ctx, { ...f, x: 0, y: 0, charId: baseFighterId(f.charId) }, skinIdx, o);
+    ctx.restore();
+    return;
+  }
   const def = getFighter(f.charId);
   const skin = def.skins[skinIdx] ?? def.skins[0];
   const { w, h } = def.stats;
@@ -1103,6 +1112,7 @@ export function drawProjectile(ctx: CanvasRenderingContext2D, p: ProjectileState
   ctx.translate(p.x, p.y);
   ctx.lineWidth = 3; ctx.strokeStyle = INK;
   if (p.kind.startsWith('sp_')) { drawSpellProjectile(ctx, p, time); ctx.restore(); return; }
+  if (p.kind === 'it_bomb') { ctx.rotate(time * 8 * Math.sign(p.vx || 1)); drawItemIcon(ctx, 'bomb', r * 0.95, time); ctx.restore(); return; }
   switch (p.kind) {
     case 'fireball': {
       for (let i = 4; i > 0; i--) {

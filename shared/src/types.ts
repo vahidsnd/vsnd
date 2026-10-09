@@ -115,6 +115,10 @@ export interface FighterState {
   usedSide: boolean;
   stats: { kos: number; falls: number; dmgDealt: number; smashKOs: number; maxCombo: number };
   mana: number;                // 0..100 magic meter (only fills when a spell is equipped)
+  // ---- match rules (rules.ts); absent in plain matches ----
+  spd?: number;                // speed-boots frames left
+  bub?: number;                // shield-bubble frames left
+  held?: number;               // held item (1 = bomb)
 }
 
 export interface ProjectileState {
@@ -142,6 +146,8 @@ export type GameEvent =
   | { t: 'counter'; slot: number }
   | { t: 'spawn'; slot: number }
   | { t: 'spell'; slot: number; id: string; x: number; y: number }
+  | { t: 'item'; slot: number; kind: string; x: number; y: number }
+  | { t: 'wave'; wave: number }
   | { t: 'end'; winnerTeam: number };
 
 export interface MatchConfig {
@@ -150,6 +156,8 @@ export interface MatchConfig {
   timeLimit: number;           // seconds, 0 = none
   teams: boolean;
   players: { charId: string; skin: number; team: number; name: string; bot?: boolean; mods?: FighterMods; title?: string; frame?: string }[];
+  /** optional event / special-mode rules (see rules.ts); absent = classic match */
+  rules?: import('./rules.ts').MatchRules;
 }
 
 /** Per-player modifiers from card upgrades and the equipped spell. 1 = neutral. */
@@ -159,6 +167,12 @@ export interface FighterMods {
   hp: number;       // weight multiplier (knockback resistance, >= 1)
   spell?: string;
   spellLv?: number;
+  /** size multiplier (co-op boss), 1 = normal */
+  scale?: number;
+  /** stamina HP pool for this fighter only (co-op boss) */
+  hpMax?: number;
+  /** super armor: barely flinches (co-op boss) */
+  armor?: boolean;
 }
 
 export interface GameState {
@@ -172,4 +186,8 @@ export interface GameState {
   winnerTeam: number;          // -1 = draw / none
   endFrame: number;
   events: GameEvent[];         // transient: cleared each step
+  // ---- match rules (rules.ts); absent in plain matches ----
+  items?: import('./rules.ts').ItemState[];
+  boss?: import('./rules.ts').BossTally;
+  sv?: import('./rules.ts').SurvivalState;
 }

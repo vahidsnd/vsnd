@@ -2,6 +2,7 @@ import { Btn, dirX, dirY } from './input.ts';
 import { getFighter, type FighterDef } from './fighters.ts';
 import { getStage, platformPos, type StageDef } from './stages.ts';
 import { aegisFrames, getSpell, healAmount, MANA, spellProjectile } from './spells.ts';
+import { prepareConfig, rulesInit, rulesInput, rulesLate, rulesMid } from './rules.ts';
 import type {
   FighterMods, FighterState, GameEvent, GameState, Hitbox, MatchConfig, MoveDef, MoveId, ProjectileState,
 } from './types.ts';
@@ -25,17 +26,20 @@ const EDGE_LOCKED = new Set(['attack', 'shield', 'roll', 'spotdodge', 'land', 'g
 type Plat = { x1: number; x2: number; y: number };
 
 // ---- setup --------------------------------------------------------------------
-export function createGame(cfg: MatchConfig): GameState {
+export function createGame(cfg0: MatchConfig): GameState {
+  const { cfg, charIds } = prepareConfig(cfg0); // match rules: derived fighters, spells, stocks (rules.ts)
   const stage = getStage(cfg.stageId);
   const fighters: FighterState[] = cfg.players.map((p, i) => {
     const [sx, sy] = stage.spawns[i % stage.spawns.length];
-    return newFighter(i, p.charId, p.skin, cfg.teams ? p.team : i, p.name, sx, sy, cfg.stocks);
+    return newFighter(i, charIds[i], p.skin, cfg.teams ? p.team : i, p.name, sx, sy, cfg.stocks);
   });
-  return {
+  const state: GameState = {
     frame: 0, cfg, fighters, projectiles: [], nextId: 1,
     timer: cfg.timeLimit > 0 ? cfg.timeLimit * TICK_RATE : 0,
     over: false, winnerTeam: -1, endFrame: 0, events: [],
   };
+  if (cfg.rules || cfg !== cfg0) rulesInit(state);
+  return state;
 }
 
 function newFighter(slot: number, charId: string, skin: number, team: number, name: string, x: number, y: number, stocks: number): FighterState {
@@ -76,17 +80,20 @@ export function step(state: GameState, inputs: ArrayLike<number>): void {
     f.inp = live ? inputs[f.slot] ?? 0 : 0;
     trackTaps(f);
   }
+  if (state.cfg.rules) rulesInput(state);
   for (const f of state.fighters) updateFighter(state, f, stage, plats, prevPlats);
   if (live) for (const f of state.fighters) updateMagic(state, f);
   pushApart(state, stage);
   updateProjectiles(state, stage, plats);
   resolveHits(state);
+  if (state.cfg.rules) rulesMid(state, stage, plats);
   checkBlastZones(state, stage);
 
   if (state.timer > 0 && live) {
     state.timer--;
     if (state.timer === 0) endByTime(state);
   }
+  if (state.cfg.rules && !state.over) rulesLate(state);
   if (!state.over) checkEnd(state);
   state.frame++;
 }

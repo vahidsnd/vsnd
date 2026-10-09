@@ -7,6 +7,7 @@ import {
 } from '@nb/shared';
 import { HttpError, need, socialRoutes } from './social.ts';
 import { liveopsRoutes } from './liveops.ts';
+import { modeRoutes } from './modes.ts';
 import { socialCtx } from './db.ts';
 import { config } from './config.ts';
 import { winsLeaderboard, createGuest, isPurchaseTokenUsed, leaderboard, markDirty, markPurchaseToken, sanitizeName, userByToken, type UserRec } from './db.ts';
@@ -185,6 +186,7 @@ const routes: Record<string, Handler> = {
   ...spectateRoutes,
   ...analyticsRoutes,
   ...adminRoutes,
+  ...modeRoutes,
 };
 
 function clamp(v: unknown, lo: number, hi: number) {

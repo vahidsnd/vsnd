@@ -2,6 +2,7 @@ import { Btn } from './input.ts';
 import { getFighter } from './fighters.ts';
 import { getStage } from './stages.ts';
 import type { FighterState, GameState } from './types.ts';
+import { ruleBotInput } from './rules.ts';
 
 /** Per-bot memory so decisions can be held for a few frames (human-like). */
 export interface BotBrain {
@@ -38,6 +39,13 @@ export function botInput(state: GameState, slot: number, brain: BotBrain): numbe
   if (state.frame % thinkEvery !== slot % thinkEvery && me.action !== 'ledge' && !offstage(me, stage)) return brain.hold & ~(Btn.ATTACK | Btn.SPECIAL | Btn.JUMP | Btn.STRONG | Btn.GRAB);
 
   if (me.action === 'spawn') return r() < 0.05 ? Btn.DOWN : 0;
+
+  // match rules (items, spells-only, survival difficulty): see rules.ts
+  if (state.cfg.rules) {
+    if (state.sv && slot !== 0) brain.level = state.sv.level;
+    const rb = ruleBotInput(state, slot, r, brain.level);
+    if (rb >= 0) return hold(rb, rb & Btn.GRAB ? 2 : 4);
+  }
 
   // magic: cast once the meter is full and a foe is near (smarter bots wait for a better moment)
   const mods = state.cfg.players[slot]?.mods;

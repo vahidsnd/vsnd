@@ -1,8 +1,9 @@
 import type { GameEvent, GameState, MatchConfig, FighterState, ProjectileState } from './types.ts';
 import type { Profile, RewardResult } from './economy.ts';
 import type { ChatMsg } from './social.ts';
+import { applyRules, encodeRules } from './rules.ts';
 
-export type QueueMode = 'ranked' | 'casual';
+export type QueueMode = 'ranked' | 'casual' | 'event';
 export type QueueFormat = '1v1' | '2v2' | 'ffa';
 
 export type ClientMsg =
@@ -11,7 +12,7 @@ export type ClientMsg =
   | { t: 'cancel' }
   | { t: 'room_create'; fighter: string; skin: number }
   | { t: 'room_join'; code: string; fighter: string; skin: number }
-  | { t: 'room_update'; fighter?: string; skin?: number; team?: number; stage?: string; stocks?: number; teams?: boolean; bots?: number }
+  | { t: 'room_update'; fighter?: string; skin?: number; team?: number; stage?: string; stocks?: number; teams?: boolean; bots?: number; rules?: string }
   | { t: 'room_start' }
   | { t: 'room_leave' }
   | { t: 'in'; s: number; b: number[] }   // latest input seq + last N input bits (oldest first) for redundancy
@@ -22,7 +23,7 @@ export type ClientMsg =
   | { t: 'spectate_stop' };
 
 export interface RoomPlayer { name: string; fighter: string; skin: number; team: number; host: boolean; bot?: boolean }
-export interface RoomInfo { code: string; players: RoomPlayer[]; stage: string; stocks: number; teams: boolean; bots: number }
+export interface RoomInfo { code: string; players: RoomPlayer[]; stage: string; stocks: number; teams: boolean; bots: number; rules?: import('./rules.ts').RuleMode }
 
 export interface MatchEndInfo {
   winnerTeam: number;
@@ -66,6 +67,7 @@ const F_KEYS = [
   'invuln', 'intang', 'fastFall', 'dropThrough', 'airdodged', 'usedRecovery', 'ledgeRegrab', 'ledgeSide',
   'grabPartner', 'respawn', 'inp', 'prev', 'tapX', 'tapY', 'tapT', 'lastHitBy', 'lastHitMove', 'combo',
   'lag', 'grabT', 'ledgeGrabs', 'usedSide', 'mana',
+  'spd', 'bub', 'held', // match rules (appended: older clients ignore them)
 ] as const satisfies readonly (keyof FighterState)[];
 
 const r2 = (v: unknown) => (typeof v === 'number' && !Number.isInteger(v) ? Math.round(v * 100) / 100 : v);
@@ -96,9 +98,13 @@ export function decodeProjectiles(data: unknown[]): ProjectileState[] {
 
 /** meta: frame-level fields */
 export function encodeMeta(s: GameState): unknown[] {
-  return [s.frame, s.nextId, s.timer, s.over ? 1 : 0, s.winnerTeam, s.endFrame];
+  const m: unknown[] = [s.frame, s.nextId, s.timer, s.over ? 1 : 0, s.winnerTeam, s.endFrame];
+  const r = encodeRules(s); // items / boss tally (appended: older clients ignore it)
+  if (r) m.push(r);
+  return m;
 }
 export function applyMeta(s: GameState, m: unknown[]) {
   s.frame = m[0] as number; s.nextId = m[1] as number; s.timer = m[2] as number;
   s.over = m[3] === 1; s.winnerTeam = m[4] as number; s.endFrame = m[5] as number;
+  if (m.length > 6) applyRules(s, m[6]);
 }

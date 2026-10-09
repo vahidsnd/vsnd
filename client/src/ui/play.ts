@@ -1,5 +1,5 @@
 import {
-  FIGHTERS, STAGES, getFighter, placements, TICK_RATE, COUNTDOWN, SPELLS, fighterMods, mapNodes, stageUnlocked, MAP_SIZE, getStage, getSpell,
+  FIGHTERS, STAGES, getFighter, baseFighterId, presetRules, featureUnlocked, type RuleMode, placements, TICK_RATE, COUNTDOWN, SPELLS, fighterMods, mapNodes, stageUnlocked, MAP_SIZE, getStage, getSpell,
   type GameState, type MapClear, type FighterMods, type RaidFight, raidStars, type MatchConfig, type MatchEndInfo, type QueueFormat, type RewardResult, type RoomInfo, type ServerMsg,
 } from '@nb/shared';
 import { backend } from '../services/backend.ts';
@@ -12,16 +12,16 @@ import { audio } from '../game/audio.ts';
 import { KeyboardSource, GamepadSource, TouchControls, MergedSource, isTouch, connectedPads, type InputSource } from '../game/input.ts';
 import { LocalSession, OnlineSession, type Session } from '../game/session.ts';
 import { t, num, isFa, loc, duration } from '../i18n.ts';
-import { h, show, topBar, fighterCanvas, modal, toast, confirmBox, icon, rewardReveal, type Screen } from './dom.ts';
+import { h, show, topBar, fighterCanvas, modal, toast, confirmBox, icon, rewardReveal, type Screen, type Child } from './dom.ts';
 import { svg } from './icons.ts';
 import { specialsList, basicsList } from './movelist.ts';
 import { introOnce, TUTORIAL, tutorialText } from './tutorial.ts';
+import { rulesPicker, RULE_INFO } from './rulepick.ts';
 import { homeScreen } from './home.ts';
 import { social } from '../services/social.ts';
 import { grantedToItems } from './dom.ts';
 import { matchBadges, poseFor } from '@nb/shared';
 import { emoteBar, titleTag, cosChipsFor, masteryClaim } from './collection.ts';
-import { featureUnlocked } from '@nb/shared';
 import { poseCanvas } from '../game/poses.ts';
 import { newRecorder, storeLocal, storeOnline, type StoredReplay } from '../services/replays.ts';
 import { track } from '../services/analytics.ts';
@@ -34,7 +34,7 @@ type Replay = () => void;
 // Online: global "match found" handler (also handles reconnect into a running match)
 // ============================================================================================
 let inGame = false;
-let lastOnline: { mode: 'ranked' | 'casual'; format: QueueFormat } | null = null;
+let lastOnline: { mode: 'ranked' | 'casual' | 'event'; format: QueueFormat } | null = null;
 
 net.on('match', (m) => {
   if (inGame) return;
@@ -45,7 +45,8 @@ function startOnline(m: Extract<ServerMsg, { t: 'match' }>) {
   const src = playerSource(true);
   let session: OnlineSession;
   let renderer: Renderer | null = null;
-  const replay: Replay = lastOnline ? (() => { const lo = lastOnline!; show(() => matchmakingScreen(lo.mode, lo.format)); }) : home;
+  const replay: Replay = m.mode === 'tourney' ? (() => import('./modes.ts').then((x) => show(x.tourneyScreen)))
+    : lastOnline ? (() => { const lo = lastOnline!; show(() => matchmakingScreen(lo.mode, lo.format)); }) : home;
   session = new OnlineSession(m.matchId, m.cfg, m.slot, src, m.mode, (info) => {
     if (info.profile) backend.applyServerProfile(info.profile);
     const rp = storeOnline(info.replay, m.slot);
@@ -56,9 +57,10 @@ function startOnline(m: Extract<ServerMsg, { t: 'match' }>) {
   });
   show(() => gameScreen(session, { online: true, onRenderer: (r) => (renderer = r) }));
   void renderer;
+  if (m.mode === 'event' || m.mode === 'tourney' || m.cfg.rules) import('./modes.ts').then((x) => x.onlineModeIntro(m.mode, m.cfg));
 }
 
-function playerSource(single: boolean): InputSource {
+export function playerSource(single: boolean): InputSource {
   const sources: InputSource[] = [new KeyboardSource()];
   const pads = connectedPads();
   if (pads.length && single) sources.push(new GamepadSource(pads[0]));
@@ -68,14 +70,14 @@ function playerSource(single: boolean): InputSource {
 // ============================================================================================
 // Matchmaking
 // ============================================================================================
-export function matchmakingScreen(mode: 'ranked' | 'casual', format: QueueFormat): Screen {
+export function matchmakingScreen(mode: 'ranked' | 'casual' | 'event', format: QueueFormat): Screen {
   lastOnline = { mode, format };
   const p = backend.profile;
   const start = Date.now();
   const timer = h('div', { class: 'mm-timer' }, duration(0));
   const info = h('div', { class: 'muted' }, '…');
   const iv = setInterval(() => { timer.textContent = duration(Date.now() - start); }, 500);
-  const offQ = net.on('queued', (m) => { info.textContent = `${m.mode === 'ranked' ? t('ranked') : t('quick')} · ${m.format === 'ffa' ? t('ffa') : m.format}`; });
+  const offQ = net.on('queued', (m) => { info.textContent = `${m.mode === 'ranked' ? t('ranked') : m.mode === 'event' ? (isFa() ? 'صف رویداد' : 'Event queue') : t('quick')} · ${m.format === 'ffa' ? t('ffa') : m.format}`; });
   const offE = net.on('error', (m) => { toast(m.msg, 'err'); });
   net.connect().then((ok) => {
     if (!ok) { toast(t('offline'), 'err'); home(); return; }
@@ -124,11 +126,13 @@ export function roomScreen(): Screen {
           STAGES.map((s) => h('option', { value: s.id, selected: s.id === room!.stage }, loc(s)))),
         h('label', {}, t('stocks'), ' ', h('input', { class: 'input small', type: 'number', min: 1, max: 5, value: room.stocks, onchange: (e: Event) => net.send({ t: 'room_update', stocks: Number((e.target as HTMLInputElement).value) }) })),
         h('label', { class: 'toggle' }, h('span', {}, t('teams')), h('input', { type: 'checkbox', checked: room.teams, onchange: (e: Event) => net.send({ t: 'room_update', teams: (e.target as HTMLInputElement).checked }) })),
+        h('div', { class: 'opt rules-opt' }, h('span', {}, svg('sparkles', 14), ' ', isFa() ? 'قوانین' : 'Rules'),
+          rulesPicker(room.rules ?? '', (m) => net.send({ t: 'room_update', rules: m }))),
         h('div', { class: 'row' }, t('bots'), ' ',
           h('button', { class: 'btn small', onclick: () => net.send({ t: 'room_update', bots: room!.bots - 1 }) }, '−'), num(room.bots),
           h('button', { class: 'btn small', onclick: () => net.send({ t: 'room_update', bots: room!.bots + 1 }) }, '+')),
         h('button', { class: 'btn primary big', onclick: () => net.send({ t: 'room_start' }) }, t('start')),
-      ) : h('p', { class: 'muted pulse' }, t('waitingHost')),
+      ) : h('p', { class: 'muted pulse' }, t('waitingHost'), room.rules ? ` · ${isFa() ? RULE_INFO[room.rules].name.fa : RULE_INFO[room.rules].name.en}` : ''),
       h('button', { class: 'btn ghost', onclick: () => net.send({ t: 'room_leave' }) }, t('leave')),
     );
   };
@@ -146,7 +150,8 @@ export function roomScreen(): Screen {
 // ============================================================================================
 export function cpuSetupScreen(): Screen {
   const p = backend.profile;
-  const st = { stage: STAGES[0].id, opponents: 1, level: Math.min(9, 2 + Math.floor(p.level / 3)), stocks: 3, teams: false, slots: ['cpu', 'cpu', 'cpu'] as string[] };
+  const st = { stage: STAGES[0].id, opponents: 1, level: Math.min(9, 2 + Math.floor(p.level / 3)), stocks: 3, teams: false, slots: ['cpu', 'cpu', 'cpu'] as string[], rules: '' as RuleMode | '' };
+  const rulesOpen = featureUnlocked(p, 'events') || !!p.dev;
   const body = h('div', { class: 'scroll cpu-body' });
   const render = () => {
     body.innerHTML = '';
@@ -168,8 +173,11 @@ export function cpuSetupScreen(): Screen {
         pads.length ? h('div', { class: 'opt' }, h('span', {}, svg('gamepad', 18)), Array.from({ length: st.opponents }, (_, i) =>
           h('button', { class: 'btn small', onclick: () => { const opts = ['cpu', ...pads.map((x) => 'pad' + x)]; st.slots[i] = opts[(opts.indexOf(st.slots[i]) + 1) % opts.length]; render(); } },
             `P${i + 2}: ${st.slots[i] === 'cpu' ? 'CPU' : 'Pad ' + st.slots[i].slice(3)}`))) : null,
+        rulesOpen ? h('div', { class: 'opt rules-opt', style: { gridColumn: '1 / -1' } }, h('span', {}, svg('sparkles', 14), ' ', isFa() ? 'قوانین' : 'Rules'),
+          rulesPicker(st.rules, (m) => { st.rules = m; render(); }),
+          st.rules ? h('small', { class: 'muted' }, isFa() ? RULE_INFO[st.rules].text.fa : RULE_INFO[st.rules].text.en) : null) : null,
       ),
-      h('button', { class: 'btn primary big', style: { alignSelf: 'center', minWidth: '220px' }, onclick: () => startCpuMatch({ stage: st.stage, opponents: st.opponents, level: st.level, stocks: st.stocks, teams: st.teams && st.opponents === 3, slots: st.slots }) }, t('start')),
+      h('button', { class: 'btn primary big', style: { alignSelf: 'center', minWidth: '220px' }, onclick: () => startCpuMatch({ stage: st.stage, opponents: st.opponents, level: st.level, stocks: st.stocks, teams: st.teams && st.opponents === 3, slots: st.slots, rules: st.rules || undefined }) }, t('start')),
     );
   };
   let lvl: HTMLElement;
@@ -183,7 +191,7 @@ function cpuMods(level: number): FighterMods | undefined {
   return { atk: 1, def: 1, hp: 1, spell: SPELLS[Math.floor(Math.random() * SPELLS.length)].id, spellLv: Math.max(1, Math.min(5, Math.ceil(level / 2))) };
 }
 
-export function startCpuMatch(o: { fighter?: string; skin?: number; trial?: boolean; stage?: string; opponents?: number; level?: number; stocks?: number; teams?: boolean; slots?: string[] }) {
+export function startCpuMatch(o: { fighter?: string; skin?: number; trial?: boolean; stage?: string; opponents?: number; level?: number; stocks?: number; teams?: boolean; slots?: string[]; rules?: RuleMode }) {
   const p = backend.profile;
   const fighter = o.fighter ?? p.selFighter;
   const skin = o.skin ?? backend.selectedSkin(fighter);
@@ -208,6 +216,7 @@ export function startCpuMatch(o: { fighter?: string; skin?: number; trial?: bool
   if (free !== undefined) p1.push(new GamepadSource(free));
   sources[0] = new MergedSource(p1);
   const cfg: MatchConfig = { stageId: stage, stocks: o.stocks ?? 3, timeLimit: 0, teams: !!o.teams, players };
+  if (o.rules) cfg.rules = presetRules(o.rules, Math.floor(Math.random() * 1e9)); // custom rules (rulepick.ts)
   const session = new LocalSession(cfg, sources, bots);
   session.recorder = newRecorder(session.state);
   const replay: Replay = () => startCpuMatch(o);
@@ -228,6 +237,7 @@ export function startCpuMatch(o: { fighter?: string; skin?: number; trial?: bool
       show(() => resultsScreen(state, 0, { winnerTeam: state.winnerTeam, placements: place, stats: state.fighters.map((x) => x.stats) }, { mode: 'cpu', replay, online: false, reward: reward ?? undefined, rec }));
     },
   }));
+  if (cfg.rules) import('./modes.ts').then((m) => m.rulesIntro(`custom-${o.rules}`, cfg.rules, session));
 }
 
 /** A world-map battle: fixed arena, foes and allies from the node definition. */
@@ -378,7 +388,7 @@ export function startTutorial() {
 // ============================================================================================
 // In-match view
 // ============================================================================================
-interface GameOpts {
+export interface GameOpts {
   online: boolean;
   training?: boolean;
   tutorial?: boolean;
@@ -389,7 +399,7 @@ interface GameOpts {
   onRenderer?: (r: Renderer) => void;
 }
 
-function gameScreen(session: Session, o: GameOpts): Screen {
+export function gameScreen(session: Session, o: GameOpts): Screen {
   inGame = true;
   track('match_start', o.online ? 'online' : o.training ? 'training' : o.tutorial ? 'tutorial' : 'local');
   (window as any).__session = session; // handy for QA / debugging from devtools
@@ -447,7 +457,7 @@ function gameScreen(session: Session, o: GameOpts): Screen {
         o.tutorial ? null : h('button', { class: 'btn ghost', onclick: () => { m.close(); stop(); home(); } }, t('quit')),
       ),
       h('div', { class: 'pause-col' },
-        h('h3', {}, t('specials')), specialsList(me.charId),
+        h('h3', {}, t('specials')), specialsList(baseFighterId(me.charId)),
         h('h3', {}, t('basics')), basicsList()),
     ), { onClose: () => { session.paused = false; } });
   };
@@ -528,27 +538,29 @@ function gameScreen(session: Session, o: GameOpts): Screen {
 // ============================================================================================
 // Results
 // ============================================================================================
-interface ResultOpts {
+export interface ResultOpts {
   mode: 'ranked' | 'casual' | 'private' | 'cpu'; replay: Replay; online: boolean; reward?: RewardResult; map?: { node: number; clear: MapClear };
   /** the match's replay (watch button) */
   rec?: StoredReplay;
   /** re-shown after watching the replay: no reveals, sounds or one-time ad offers */
   quiet?: boolean;
+  extra?: Child; title?: string; again?: string; back?: { label: string; fn: () => void }
 }
 
-function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: ResultOpts): Screen {
+export function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: ResultOpts): Screen {
   const me = state.fighters[mySlot];
   const won = info.winnerTeam === me.team;
   const draw = info.winnerTeam < 0;
   const r = o.reward;
-  const order = state.fighters.map((f, i) => ({ f, i, place: info.placements[i] })).sort((a, b) => a.place - b.place);
+  // survival: the wave foes come and go, only the player's own line means something
+  const order = state.fighters.map((f, i) => ({ f, i, place: info.placements[i] })).filter((x) => !state.sv || x.i === mySlot).sort((a, b) => a.place - b.place);
 
   const rows = order.map(({ f, i, place }) => {
     const s = info.stats[i] ?? f.stats;
     const pl = state.cfg.players[i];
     return h('div', { class: `res-row ${i === mySlot ? 'me' : ''}`, style: { borderColor: PLAYER_COLORS[i] } },
-      h('span', { class: 'place' }, num(place)),
-      fighterCanvas(f.charId, displaySkin(state, i), 40),
+      h('span', { class: 'place' }, state.sv ? svg('skull', 16) : num(place)),
+      fighterCanvas(baseFighterId(f.charId), displaySkin(state, i), 40),
       h('div', { class: 'who' },
         h('b', {}, pl.name, pl.bot ? h('small', { class: 'muted' }, ` · ${t('bot')}`) : null, titleTag(pl.title, 'sm')),
         h('small', { class: 'muted' }, `${t('kos')} ${num(s.kos)} · ${t('falls')} ${num(s.falls)} · ${t('damage')} ${num(Math.round(s.dmgDealt))}% · ${t('combo')} ${num(s.maxCombo)}`)));
@@ -605,17 +617,18 @@ function resultsScreen(state: GameState, mySlot: number, info: MatchEndInfo, o: 
   const nextNode = o.map && mc?.firstClear && o.map.node + 1 < MAP_SIZE ? o.map.node + 1 : -1;
   const el = h('div', { class: `page results ${won ? 'win' : draw ? '' : 'lose'}` },
     h('div', { class: 'res-head' },
-      won ? poseCanvas(me.charId, displaySkin(state, mySlot), 120, poseFor(backend.profile, me.charId)) : fighterCanvas(me.charId, displaySkin(state, mySlot), 110, 'idle'),
-      h('h1', { class: 'title-grad' }, draw ? t('draw') : won ? t('victory') : t('defeat')),
+      won ? poseCanvas(baseFighterId(me.charId), displaySkin(state, mySlot), 120, poseFor(backend.profile, me.charId)) : fighterCanvas(baseFighterId(me.charId), displaySkin(state, mySlot), 110, 'idle'),
+      h('h1', { class: 'title-grad' }, o.title ?? (draw ? t('draw') : won ? t('victory') : t('defeat'))),
     ),
-    h('div', { class: 'res-body' }, h('div', { class: 'res-table' }, rows), h('div', { class: 'res-side' }, mapBlock, rewards)),
+    h('div', { class: 'res-body' }, h('div', { class: 'res-table' }, rows), h('div', { class: 'res-side' }, o.extra, mapBlock, rewards)),
     h('div', { class: 'res-actions' },
       h('button', { class: 'btn big', onclick: () => next(home) }, t('home')),
       o.rec ? h('button', { class: 'btn big res-replay', onclick: () => import('./replays.ts').then((m) => m.watchStored(o.rec!, () => show(() => resultsScreen(state, mySlot, info, { ...o, quiet: true })))) }, picon('film', 18), isFa() ? 'بازپخش' : 'Replay') : null,
+      o.back ? h('button', { class: 'btn big', onclick: () => next(o.back!.fn) }, o.back.label) : null,
       o.map ? h('button', { class: 'btn big', onclick: () => next(() => import('./progress.ts').then((m) => show(() => m.mapScreen(o.map!.node)))) }, svg('map', 18), isFa() ? 'نقشه' : 'Map') : null,
       nextNode >= 0
         ? h('button', { class: 'btn primary big', onclick: () => next(() => startMapNode(nextNode)) }, svg('swords', 18), isFa() ? 'مرحله بعد' : 'Next stage')
-        : h('button', { class: 'btn primary big', onclick: () => next(o.replay) }, svg('refresh', 18), o.map ? (isFa() ? 'دوباره' : 'Retry') : t('playAgain')),
+        : h('button', { class: 'btn primary big', onclick: () => next(o.replay) }, svg('refresh', 18), o.again ?? (o.map ? (isFa() ? 'دوباره' : 'Retry') : t('playAgain'))),
     ),
   );
   if (won && !o.quiet) audio.reward();

@@ -564,3 +564,5 @@ const BY_ID = new Map(FIGHTERS.map((f) => [f.id, f]));
 export function getFighter(id: string): FighterDef {
   return BY_ID.get(id) ?? FIGHTERS[0];
 }
+/** Registers a derived definition (match rules: giant / low gravity / co-op boss, see rules.ts). */
+export function registerFighter(def: FighterDef) { BY_ID.set(def.id, def); }

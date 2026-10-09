@@ -22,3 +22,8 @@ export * from './notify.ts';
 export * from './replay.ts';
 export * from './remoteconfig.ts';
 export * from './analytics.ts';
+export * from './rules.ts';
+export * from './events.ts';
+export * from './tournament.ts';
+export * from './clanboss.ts';
+export * from './survival.ts';

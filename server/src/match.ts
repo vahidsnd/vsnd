@@ -4,6 +4,7 @@ import {
   applyMatch, botInput, createBrain, createGame, eloDelta, encodeFighters, encodeMeta, encodeProjectiles,
   placements, step, SNAPSHOT_EVERY, TICK_RATE, COUNTDOWN, trackLeague, warReport, clanOf, addWeekResult, INPUT_MASK, flagCheat, ownsEmoteNet,
   ReplayRecorder, encodeReplay, forfeitSlot,
+  baseFighterId, recordEventMatch,
   type BotBrain, type GameEvent, type GameState, type MatchConfig, type MatchEndInfo, type ServerMsg,
 } from '@nb/shared';
 import { markDirty, socialCtx, type UserRec } from './db.ts';
@@ -11,7 +12,7 @@ import { notifyClan } from './sockets.ts';
 import { SpecFeed } from './spectate.ts';
 import { storeMatchReplay } from './replays.ts';
 
-export type MatchMode = 'ranked' | 'casual' | 'private';
+export type MatchMode = 'ranked' | 'casual' | 'private' | 'event' | 'tourney';
 
 export interface Seat {
   user: UserRec | null;
@@ -50,6 +51,8 @@ export class Match {
   private rec: ReplayRecorder;
   /** delayed snapshot feed for spectators */
   spec = new SpecFeed(this);
+  /** called once with the final state (tournament results, see modes.ts) */
+  onEnd?: (m: Match) => void;
 
   constructor(public mode: MatchMode, public cfg: MatchConfig, public seats: Seat[]) {
     this.state = createGame(cfg);
@@ -187,10 +190,11 @@ export class Match {
       const f = st.fighters[i];
       const won = st.winnerTeam === f.team;
       const reward = applyMatch(p, {
-        matchId: this.id, mode: this.mode === 'private' ? 'casual' : this.mode, won, placement: place[i],
+        matchId: this.id, mode: this.mode === 'ranked' ? 'ranked' : 'casual', won, placement: place[i],
         players: st.fighters.length, kos: f.stats.kos, falls: f.stats.falls, dmg: f.stats.dmgDealt,
-        smashKOs: f.stats.smashKOs, maxCombo: f.stats.maxCombo, fighter: f.charId, durationSec,
+        smashKOs: f.stats.smashKOs, maxCombo: f.stats.maxCombo, fighter: baseFighterId(f.charId), durationSec,
       });
+      if (this.mode === 'event') recordEventMatch(p, won, Date.now(), false);
       let mmrDelta: number | undefined;
       if (this.mode === 'ranked') {
         mmrDelta = deltas[i];
@@ -210,5 +214,6 @@ export class Match {
       send(seat.ws, { t: 'end', info });
       if (matchByUser.get(p.id) === this) matchByUser.delete(p.id);
     });
+    try { this.onEnd?.(this); } catch (e) { console.error('[match] onEnd', e); }
   }
 }

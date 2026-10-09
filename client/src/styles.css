@@ -458,3 +458,7 @@ input[type=range] { accent-color: var(--accent); flex: 1; min-width: 100px; }
 .touch.custom .tbtns { inset: 0; width: auto; height: auto; transform: none; }
 .touch.custom .tb { right: auto !important; bottom: auto !important; }
 .touch.custom .stick-zone { right: auto; bottom: auto; }
+/* 8+ quick tools: two columns so they never run under the ad banner */
+.hero-tools { display: grid; grid-template-columns: repeat(2, auto); gap: 6px; align-content: start; }
+@media (max-height: 460px) { .hero-tools { gap: 4px; } .hero-tools .tool { width: 34px; height: 34px; } }
+@media (max-height: 380px) { .hero-tools .tool { width: 31px; height: 31px; } }
