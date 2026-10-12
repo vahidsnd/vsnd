@@ -14,6 +14,7 @@ import { homeScreen } from './ui/home.ts';
 import './ui/play.ts'; // registers the global "match found" handler
 import { initRemoteConfig } from './services/remoteconfig.ts';
 import { initAnalytics, trackScreen } from './services/analytics.ts';
+import './ui/cartoon.css';
 
 async function boot() {
   const root = document.getElementById('app')!;

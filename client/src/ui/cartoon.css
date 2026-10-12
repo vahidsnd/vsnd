@@ -1,0 +1,70 @@
+/* Cartoon skin: the menus share the characters' look — thick ink outlines, hard shadows,
+   bright bevelled buttons and comic-style titles. Loaded last so it overrides the base theme. */
+:root {
+  --ink-c: #140b14;
+  --card-top: #3a2d66;
+  --card-bot: #211a40;
+  --toon-r: 16px;
+}
+
+#app {
+  background:
+    radial-gradient(circle at 12% 8%, #ffd66622 0 6%, transparent 7%),
+    radial-gradient(circle at 88% 14%, #7ff6ff1f 0 5%, transparent 6%),
+    radial-gradient(ellipse at 50% 120%, #ff8a3a40, transparent 60%),
+    linear-gradient(170deg, #2a2466, #151238 55%, #0c0a22);
+}
+
+/* panels, cards and popups: ink outline + hard drop shadow */
+.card, .modal, .player-chip, .cur.big, .tab {
+  border: 2.5px solid var(--ink-c) !important;
+  box-shadow: 0 4px 0 var(--ink-c);
+}
+.card, .modal {
+  background: linear-gradient(180deg, var(--card-top), var(--card-bot)) !important;
+}
+.card { border-radius: var(--toon-r); }
+.card.hot { box-shadow: 0 4px 0 var(--ink-c), 0 0 22px #ffd66655 inset; border-color: var(--ink-c) !important; }
+.modal { border-radius: 22px; box-shadow: 0 6px 0 var(--ink-c), 0 18px 40px #000a; }
+.modal-x { border-radius: 50%; }
+
+/* buttons: chunky bevel with an ink outline */
+.btn {
+  border: 2.5px solid var(--ink-c) !important;
+  border-radius: 14px;
+  box-shadow: 0 4px 0 var(--ink-c), inset 0 2px 0 #ffffff55;
+  text-shadow: 0 1.5px 0 #00000066;
+  font-weight: 900;
+}
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink-c), inset 0 2px 0 #ffffff33; }
+.btn.primary { background: linear-gradient(180deg, #ff8fb6, #e8327a) !important; border-color: var(--ink-c) !important; }
+.btn.accent { background: linear-gradient(180deg, #8ff7ff, #2fbfe0) !important; }
+.btn.gold { background: linear-gradient(180deg, #ffe58a, #f0a800) !important; color: #2a1800 !important; }
+.btn.ad { background: linear-gradient(180deg, #9dffcf, #22c985) !important; }
+.btn.gem { background: linear-gradient(180deg, #a6e6ff, #4a8dff) !important; }
+.btn.ghost { background: #ffffff14 !important; box-shadow: 0 3px 0 var(--ink-c); }
+.btn.play { box-shadow: 0 5px 0 #4a2f00, 0 0 0 3px var(--ink-c), 0 0 28px #ffd66666; }
+
+/* tabs look like sticker pills */
+.tab { background: #2b2254 !important; color: #fff3d6; }
+.tab.on { background: linear-gradient(180deg, #ffe58a, #f0a800) !important; color: #2a1800 !important; box-shadow: 0 3px 0 var(--ink-c); }
+
+/* titles get a comic outline */
+.topbar .title, h1, h2 {
+  text-shadow: 0 2px 0 var(--ink-c), 0 -1px 0 var(--ink-c), 1px 0 0 var(--ink-c), -1px 0 0 var(--ink-c), 0 3px 6px #000a;
+  letter-spacing: .3px;
+}
+.title-grad { text-shadow: none; filter: drop-shadow(0 2px 0 var(--ink-c)) drop-shadow(0 4px 6px #000a); }
+
+/* top bar and currency chips */
+.player-chip { background: linear-gradient(180deg, #34295e, #1d1740) !important; border-radius: 999px; }
+.cur.big { background: linear-gradient(180deg, #3a2e68, #221b45) !important; border-radius: 12px; }
+.tag { border: 2px solid var(--ink-c); }
+
+/* toasts read like comic speech bubbles */
+.toast { border: 3px solid var(--ink-c) !important; box-shadow: 0 4px 0 var(--ink-c); border-radius: 16px; }
+.toast.ok { background: linear-gradient(180deg, #2fd39a, #13825c) !important; }
+.toast.err { background: linear-gradient(180deg, #ff6b7d, #b3253d) !important; }
+
+/* a warm backdrop behind menus, echoing the stage art */
+.screen { background: transparent; }
