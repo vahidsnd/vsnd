@@ -11,6 +11,19 @@ interface Particle {
 
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 
+// Painted stage backdrops: client/public/stages/<id>.webp. Until one loads (or if it is missing),
+// the procedural sky and layers are drawn, so the game runs without the files.
+const stageArtCache = new Map<string, HTMLImageElement>();
+function stageArtFor(id: string): HTMLImageElement | null {
+  let img = stageArtCache.get(id);
+  if (!img) {
+    img = new Image();
+    img.src = `${import.meta.env.BASE_URL}stages/${id}.webp`;
+    stageArtCache.set(id, img);
+  }
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
+
 /** Mirror matches: a later player with the same fighter+skin is shown in the next skin. */
 export function displaySkin(state: GameState, slot: number): number {
   const f = state.fighters[slot];
@@ -671,6 +684,14 @@ export class Renderer {
   private drawBackground(stage: StageDef, time: number) {
     const { ctx } = this;
     const th = stage.theme;
+    // painted stage art (client/public/stages/<id>.webp) replaces the procedural sky when it has loaded
+    const art = stageArtFor(stage.id);
+    if (art) {
+      const s = Math.max(this.w / art.naturalWidth, this.h / art.naturalHeight);
+      const dw = art.naturalWidth * s, dh = art.naturalHeight * s;
+      ctx.drawImage(art, (this.w - dw) / 2, (this.h - dh) / 2, dw, dh);
+      return;
+    }
     const q = Math.min(this.dpr, 1.25); // background resolution: softer = cheaper and reads as depth
     const skyKey = `sky:${stage.id}:${this.w}x${this.h}:${q}`;
     let sky = this.layerCache.get(skyKey);
