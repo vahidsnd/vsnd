@@ -182,9 +182,16 @@ function spriteBox(img: HTMLImageElement) {
   return b;
 }
 
-function spriteFor(charId: string, pose: '' | 'attack' | 'jump'): HTMLImageElement | null {
+export type SpritePose = '' | 'attack' | 'jump' | 'jumplong' | 'sit' | 'punch' | 'kick' | 'fire';
+// a pose without its own file borrows the closest one, then falls back to the standing sprite
+const SPRITE_FALLBACK: Record<SpritePose, string[]> = {
+  '': [], attack: ['attack'], jump: ['jump'], jumplong: ['jumplong', 'jump'], sit: ['sit'],
+  punch: ['punch', 'attack'], kick: ['kick', 'attack'], fire: ['fire', 'attack'],
+};
+function spriteFor(charId: string, pose: SpritePose): HTMLImageElement | null {
   const id = baseFighterId(charId);
-  return (pose && loadSprite(`${id}-${pose}`)) || loadSprite(id);
+  for (const p of SPRITE_FALLBACK[pose]) { const s = loadSprite(`${id}-${p}`); if (s) return s; }
+  return loadSprite(id);
 }
 
 export function drawFighter(ctx: CanvasRenderingContext2D, f: FighterState, skinIdx: number, o: DrawOpts) {
@@ -248,7 +255,17 @@ export function drawFighter(ctx: CanvasRenderingContext2D, f: FighterState, skin
     for (const s of pose.swoosh) drawSwoosh(ctx, s.x, s.y, s.r, s.a, skin.glow);
   }
 
-  const spritePose = f.action === 'attack' ? 'attack' : (!f.grounded && f.action !== 'hitstun' ? 'jump' : '');
+  // which painted pose to show: each move uses a matching sprite (punch, kick, fire, aerial, ...)
+  const mv = f.action === 'attack' ? (f.move ?? '') : '';
+  let spritePose: SpritePose = '';
+  if (f.action === 'attack') {
+    spritePose = /air$/.test(mv) ? 'jumplong'
+      : /special$/.test(mv) ? 'fire'
+      : ['ftilt', 'fsmash', 'usmash', 'dsmash'].includes(mv) ? 'kick'
+      : ['jab', 'dash', 'grab', 'fthrow', 'bthrow', 'uthrow', 'dthrow'].includes(mv) ? 'punch'
+      : 'attack';
+  } else if (f.action === 'crouch') spritePose = 'sit';
+  else if (!f.grounded && f.action !== 'hitstun') spritePose = Math.abs(f.vx) > 4 ? 'jumplong' : 'jump';
   const sprite = spriteFor(f.charId, spritePose);
   if (sprite) {
     // painted sprite: the visible figure (not the empty canvas) is scaled to the hurtbox height and its
@@ -257,7 +274,26 @@ export function drawFighter(ctx: CanvasRenderingContext2D, f: FighterState, skin
     const sh = h * SPRITE_HEIGHT;
     const s = sh / box.h;
     const sw = box.w * s;
-    ctx.drawImage(sprite, box.x, box.y, box.w, box.h, -sw / 2, -sh, sw, sh);
+    const x0 = -sw / 2, y0 = -sh;
+    // walking: the upper body stays, the lower body swings from the hip. The phase follows the distance
+    // walked, so the legs step in turn, go forward and back with the fighter, and stop when it stops.
+    const walking = (f.action === 'walk' || f.action === 'run') && f.grounded && spritePose === '';
+    if (walking) {
+      const speed = Math.min(1, Math.abs(f.vx) / 8);
+      const swing = Math.sin(f.x * 0.42) * (0.12 + 0.1 * speed);
+      const hip = y0 + sh * 0.56;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x0 - 20, y0 - 20, sw + 40, hip - y0 + 20); ctx.clip();
+      ctx.drawImage(sprite, box.x, box.y, box.w, box.h, x0, y0, sw, sh);
+      ctx.restore();
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x0 - 40, hip, sw + 80, sh); ctx.clip();
+      ctx.translate(0, hip); ctx.rotate(swing); ctx.translate(0, -hip);
+      ctx.drawImage(sprite, box.x, box.y, box.w, box.h, x0, y0, sw, sh);
+      ctx.restore();
+    } else {
+      ctx.drawImage(sprite, box.x, box.y, box.w, box.h, x0, y0, sw, sh);
+    }
   } else {
     const back = (lead: 'hb' | 'fb') => drawLimb(ctx, pose[lead], lead[0] === 'h', def, skin, true, pose.lead === lead);
     back('fb'); back('hb');
