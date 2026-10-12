@@ -1,105 +1,105 @@
 {
-  "note": "Simplified-detail set (v2). Files go to fighters-v2\\. Links expire at unix 1792108800 (about 2026-10-14 UTC). Run download-art.ps1 before then.",
+  "note": "Set v3: GPT 2.5 low 1K render style, plain white background. Files go to fighters-v3\\. Links expire at unix 1792108800 (about 2026-10-14 UTC). Run download-art.ps1 before then.",
   "items": [
     {
-      "file": "fighters-v2/blaze.png",
+      "file": "fighters-v3/blaze.png",
       "name": "Blaze",
-      "url": "https://pikaso.cdnpk.net/private/production/5710067019/render.png?token=exp=1792108800~hmac=e6db1cb5245b30154e951ee0ecd972cb2f745f957ff18aadd3c144b41774e0a5"
+      "url": "https://pikaso.cdnpk.net/private/production/5710150654/render.png?token=exp=1792108800~hmac=f0d7aad3e8d69ae8f9d35883da3a5bf7b367d3e8465e8202c4b5e03d31160195"
     },
     {
-      "file": "fighters-v2/boulder.png",
+      "file": "fighters-v3/boulder.png",
       "name": "Boulder",
-      "url": "https://pikaso.cdnpk.net/private/production/5710069060/render.png?token=exp=1792108800~hmac=8c53ace1c833c21eba7460ed9094ae7a6318f997ad1f593f467491d3153cb808"
+      "url": "https://pikaso.cdnpk.net/private/production/5710161442/render.png?token=exp=1792108800~hmac=43dbcaefed94d955792cb1fae296379a8315fefc52985cd9232c5bfc4e539155"
     },
     {
-      "file": "fighters-v2/zephyr.png",
+      "file": "fighters-v3/zephyr.png",
       "name": "Zephyr",
-      "url": "https://pikaso.cdnpk.net/private/production/5710072182/render.png?token=exp=1792108800~hmac=f2e3dd0a46a21a1ec65df9ee5fcd55865b0b25983122e04959f0fcc11038707f"
+      "url": "https://pikaso.cdnpk.net/private/production/5710162093/render.png?token=exp=1792108800~hmac=3558c7f9eca6a5ac726768b83f68b06d74df2f0f8c2379eaf5a76740101186dd"
     },
     {
-      "file": "fighters-v2/volt.png",
+      "file": "fighters-v3/volt.png",
       "name": "Volt",
-      "url": "https://pikaso.cdnpk.net/private/production/5710070644/render.png?token=exp=1792108800~hmac=c7efeb656d268b4d7bf890e808dba6aae667d9a818dcb262bb5d636325212a80"
+      "url": "https://pikaso.cdnpk.net/private/production/5710162085/render.png?token=exp=1792108800~hmac=762884bc35e3aec344eb4e7007e2d40302f26d4c7fafdb79fd11c10e8465ca46"
     },
     {
-      "file": "fighters-v2/kira.png",
+      "file": "fighters-v3/kira.png",
       "name": "Kira",
-      "url": "https://pikaso.cdnpk.net/private/production/5710070103/render.png?token=exp=1792108800~hmac=03ba152252bdaa96bbb7d723181dd0983aa754c4a4252337d6a14afa61b357e0"
+      "url": "https://pikaso.cdnpk.net/private/production/5710162358/render.png?token=exp=1792108800~hmac=99a722fe5a6ca960ad4118e4d55f6dcb89753229c7c198ceae26f94a11d76b1a"
     },
     {
-      "file": "fighters-v2/pip.png",
+      "file": "fighters-v3/pip.png",
       "name": "Pip",
-      "url": "https://pikaso.cdnpk.net/private/production/5710070266/render.png?token=exp=1792108800~hmac=550abe7e76ead789c2e167a6b058399c2d8ff84512633a60a898649383d71cf3"
+      "url": "https://pikaso.cdnpk.net/private/production/5710161144/render.png?token=exp=1792108800~hmac=d7dcf71671b023e8c0c272d04c5a234f751671a887cc538d532261a5ec3a1d1b"
     },
     {
-      "file": "fighters-v2/kage.png",
+      "file": "fighters-v3/kage.png",
       "name": "Kage",
-      "url": "https://pikaso.cdnpk.net/private/production/5710070382/render.png?token=exp=1792108800~hmac=d02e8e9d6a13ee9783bce857a651ac10152fd9c444068004bfd8a881c80b1fa9"
+      "url": "https://pikaso.cdnpk.net/private/production/5710162778/render.png?token=exp=1792108800~hmac=871bd500200336b6f10ebfe590dec29dda5e41f5cde387538d206ebb194201a4"
     },
     {
-      "file": "fighters-v2/sirocco.png",
+      "file": "fighters-v3/sirocco.png",
       "name": "Sirocco",
-      "url": "https://pikaso.cdnpk.net/private/production/5710071785/render.png?token=exp=1792108800~hmac=6e8785991598ce3d553fdfea2705eca7f64d886b36a6fb6a8a910d42e5e1b03d"
+      "url": "https://pikaso.cdnpk.net/private/production/5710162698/render.png?token=exp=1792108800~hmac=620fd5dff7a03b61021ec25a7c2867dd91670499cb782a24660a2369c0ab1ac7"
     },
     {
-      "file": "fighters-v2/rime.png",
+      "file": "fighters-v3/rime.png",
       "name": "Rime",
-      "url": "https://pikaso.cdnpk.net/private/production/5710072752/render.png?token=exp=1792108800~hmac=3a27be0ae807d8be37048f25a035b70cf775814dcffe10af814ccf3f7f2b4e92"
+      "url": "https://pikaso.cdnpk.net/private/production/5710163080/render.png?token=exp=1792108800~hmac=69ca754ed937b32860c7285c7d61fe3a6ea651004531a9b4a6cdb4724c5eab42"
     },
     {
-      "file": "fighters-v2/nyx.png",
+      "file": "fighters-v3/nyx.png",
       "name": "Nyx",
-      "url": "https://pikaso.cdnpk.net/private/production/5710072342/render.png?token=exp=1792108800~hmac=ea023ed0ea3e85cccf3804cfa6dedbf37e049254931d44591f55b5ef087c7811"
+      "url": "https://pikaso.cdnpk.net/private/production/5710163461/render.png?token=exp=1792108800~hmac=76c8b49e438a1d62f09dd2be61f3e7e74b4c33a74dcd80db0f4d19f27314340c"
     },
     {
-      "file": "fighters-v2/rivet.png",
+      "file": "fighters-v3/rivet.png",
       "name": "Rivet",
-      "url": "https://pikaso.cdnpk.net/private/production/5710071941/render.png?token=exp=1792108800~hmac=20486b08bb8278070436352c0d1f046ab933a53e4c78cf0abb306ef90382c664"
+      "url": "https://pikaso.cdnpk.net/private/production/5710163906/render.png?token=exp=1792108800~hmac=c94da955946b2886e848b76ef68ea7c22e6bf2c2999fa0e09b804d5eb15c0d53"
     },
     {
-      "file": "fighters-v2/azhi.png",
+      "file": "fighters-v3/azhi.png",
       "name": "Azhi",
-      "url": "https://pikaso.cdnpk.net/private/production/5710072154/render.png?token=exp=1792108800~hmac=6d10b2615eea51ca2bb56b7bd19226263368b01bd65b6f1b28b0a7758d75b9ea"
+      "url": "https://pikaso.cdnpk.net/private/production/5710164051/render.png?token=exp=1792108800~hmac=f31ea515cd080ea161e999d8271e9deda4b2d0b22c5fe37b2c5041e60e473095"
     },
     {
-      "file": "fighters-v2/ursa.png",
+      "file": "fighters-v3/ursa.png",
       "name": "Ursa",
-      "url": "https://pikaso.cdnpk.net/private/production/5710073111/render.png?token=exp=1792108800~hmac=4ac443d9bd4fead83da358db420d7de59b40ce2b37e0496b50dbc67de3cc00ca"
+      "url": "https://pikaso.cdnpk.net/private/production/5710164094/render.png?token=exp=1792108800~hmac=cbc8713e682b66d31478ed95210377285692bf21d174824a853e5736d809b5b7"
     },
     {
-      "file": "fighters-v2/sigrun.png",
+      "file": "fighters-v3/sigrun.png",
       "name": "Sigrun",
-      "url": "https://pikaso.cdnpk.net/private/production/5710073631/render.png?token=exp=1792108800~hmac=7e01af4b32f01a2635beb6767616ec4e4d4ac79d7f75b50f836dfb7b05ec5089"
+      "url": "https://pikaso.cdnpk.net/private/production/5710164504/render.png?token=exp=1792108800~hmac=20d93c29a8096fa62458db838abbfe623498de659ebc94605d6e267e6eb2bbc1"
     },
     {
-      "file": "fighters-v2/azar.png",
+      "file": "fighters-v3/azar.png",
       "name": "Azar",
-      "url": "https://pikaso.cdnpk.net/private/production/5710073871/render.png?token=exp=1792108800~hmac=d3097cc749b40bdcc9107043f6db26a1cfd341a1f30c0aaa500ed2a356d46377"
+      "url": "https://pikaso.cdnpk.net/private/production/5710165191/render.png?token=exp=1792108800~hmac=6fc110075117a1dd0d54438b9950c20a086072af6b5fba76c64b4405e6bbf310"
     },
     {
-      "file": "fighters-v2/corvin.png",
+      "file": "fighters-v3/corvin.png",
       "name": "Corvin",
-      "url": "https://pikaso.cdnpk.net/private/production/5710075926/render.png?token=exp=1792108800~hmac=c2955d371b978e2e98e671993de4188b85c5531d76fe5e9ad3e1049622298a7d"
+      "url": "https://pikaso.cdnpk.net/private/production/5710165260/render.png?token=exp=1792108800~hmac=6d682ac0804ed9f1baf3aee2b707df2ae8a6c24f808ace56c8564eeb039935f5"
     },
     {
-      "file": "fighters-v2/onyx.png",
+      "file": "fighters-v3/onyx.png",
       "name": "Onyx",
-      "url": "https://pikaso.cdnpk.net/private/production/5710076958/render.png?token=exp=1792108800~hmac=f0c5f21bac59daecfd24f4791e0e034113a122ea71eb5646e76bf9f5a90fd7a3"
+      "url": "https://pikaso.cdnpk.net/private/production/5710165162/render.png?token=exp=1792108800~hmac=0b1872461082983432ff04e2f172c797bce7de10df44f6b5df3431ce91d7d6c6"
     },
     {
-      "file": "fighters-v2/kavir.png",
+      "file": "fighters-v3/kavir.png",
       "name": "Kavir",
-      "url": "https://pikaso.cdnpk.net/private/production/5710079276/render.png?token=exp=1792108800~hmac=2ac89d8871041751264d7b2b4ccff1e985d9c33e7217fb54acdfffe9ae3690da"
+      "url": "https://pikaso.cdnpk.net/private/production/5710165730/render.png?token=exp=1792108800~hmac=61c3d66f47ef2def66f0dd912375b6120b8373120edac295099dd61a2d4c25af"
     },
     {
-      "file": "fighters-v2/riptide.png",
+      "file": "fighters-v3/riptide.png",
       "name": "Riptide",
-      "url": "https://pikaso.cdnpk.net/private/production/5710081217/render.png?token=exp=1792108800~hmac=9a5ae84d1955e497bb325b586c0672c83a2757604f6be91de4db89cf4061a2fc"
+      "url": "https://pikaso.cdnpk.net/private/production/5710166031/render.png?token=exp=1792108800~hmac=ea7229679cfa03eae9f1c1dd24bc0f5fa1e5832fa9e6d7a1cd707992533219ed"
     },
     {
-      "file": "fighters-v2/mira.png",
+      "file": "fighters-v3/mira.png",
       "name": "Mira",
-      "url": "https://pikaso.cdnpk.net/private/production/5710083632/render.png?token=exp=1792108800~hmac=b5acdf2f409684928fa9d6bd5f43df651fb8023b9928b2b59ec713b159758658"
+      "url": "https://pikaso.cdnpk.net/private/production/5710166304/render.png?token=exp=1792108800~hmac=1b0ea12473c0d3ccf84d40ec90f102dc400a686280d21dc7f5636169ab516dc7"
     }
   ]
 }
