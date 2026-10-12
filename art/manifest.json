@@ -1,0 +1,105 @@
+{
+  "note": "Links expire at unix 1792108800 (about 2026-10-14 UTC). Run download-art.ps1 before then.",
+  "items": [
+    {
+      "file": "fighters/blaze.png",
+      "name": "Blaze",
+      "url": "https://pikaso.cdnpk.net/private/production/5709771134/render.png?token=exp=1792108800~hmac=f38939a20c54863a00a8b515e7c291e6b37238026e31dd47e748adbf070d0c54"
+    },
+    {
+      "file": "fighters/boulder.png",
+      "name": "Boulder",
+      "url": "https://pikaso.cdnpk.net/private/production/5709801707/render.png?token=exp=1792108800~hmac=7bf67a61396b25f947b0cce751f700e542f316315787f398ac16cc9cbe6985cb"
+    },
+    {
+      "file": "fighters/zephyr.png",
+      "name": "Zephyr",
+      "url": "https://pikaso.cdnpk.net/private/production/5709801344/render.png?token=exp=1792108800~hmac=b910bdc63af3c3faea9f33851920b2c5676868090f8a730b05e9c2d07e5e3edb"
+    },
+    {
+      "file": "fighters/volt.png",
+      "name": "Volt",
+      "url": "https://pikaso.cdnpk.net/private/production/5709801816/render.png?token=exp=1792108800~hmac=5876ad54b6e29a3008ceedf9482669c5845c92907f39637f5bd1c681543dbdce"
+    },
+    {
+      "file": "fighters/kira.png",
+      "name": "Kira",
+      "url": "https://pikaso.cdnpk.net/private/production/5709801337/render.png?token=exp=1792108800~hmac=b99b263bc37d337bea7d2b0b4fe6f0116a058f5556c9c308d143160a79eabb27"
+    },
+    {
+      "file": "fighters/pip.png",
+      "name": "Pip",
+      "url": "https://pikaso.cdnpk.net/private/production/5709802124/render.png?token=exp=1792108800~hmac=c54e28e7ff53e55a1ab55efba593f50909e8f070bb3f85c3d109bfd5029700a2"
+    },
+    {
+      "file": "fighters/kage.png",
+      "name": "Kage",
+      "url": "https://pikaso.cdnpk.net/private/production/5709802306/render.png?token=exp=1792108800~hmac=c0b2f23e59b23359482078599471b5d1082500d07315e913ca8abac5dada5437"
+    },
+    {
+      "file": "fighters/sirocco.png",
+      "name": "Sirocco",
+      "url": "https://pikaso.cdnpk.net/private/production/5709802382/render.png?token=exp=1792108800~hmac=65450d9280562b80069d5966bdeb6280167ce24b8af68de9ef66092842c5b4ec"
+    },
+    {
+      "file": "fighters/rime.png",
+      "name": "Rime",
+      "url": "https://pikaso.cdnpk.net/private/production/5709802604/render.png?token=exp=1792108800~hmac=ef53953f594037159915a2b8fb4005b10b8228271a16e11f7c79b7bdfa6068b6"
+    },
+    {
+      "file": "fighters/nyx.png",
+      "name": "Nyx",
+      "url": "https://pikaso.cdnpk.net/private/production/5709802919/render.png?token=exp=1792108800~hmac=afd405989564d1382cd5198ccbe9bd78efbf494dffd680a88c8e51d19c549942"
+    },
+    {
+      "file": "fighters/rivet.png",
+      "name": "Rivet",
+      "url": "https://pikaso.cdnpk.net/private/production/5709804179/render.png?token=exp=1792108800~hmac=fd2d49d4d976528af325540ec6b22ac41739b45d3370de2936dae5ae84234bd8"
+    },
+    {
+      "file": "fighters/azhi.png",
+      "name": "Azhi",
+      "url": "https://pikaso.cdnpk.net/private/production/5709804167/render.png?token=exp=1792108800~hmac=e51c764f7a5b991ac412b6132ac753e035a0e6045b1dff8b7c0bf5e1cda51bb5"
+    },
+    {
+      "file": "fighters/ursa.png",
+      "name": "Ursa",
+      "url": "https://pikaso.cdnpk.net/private/production/5709804725/render.png?token=exp=1792108800~hmac=02f75dcd82fd2a05142146bf0553489d87f8650a3f1ea0d922cfa42bedd429ce"
+    },
+    {
+      "file": "fighters/sigrun.png",
+      "name": "Sigrun",
+      "url": "https://pikaso.cdnpk.net/private/production/5709804228/render.png?token=exp=1792108800~hmac=6e8971a379fc90f7544e683daa1e0dae835b80c754803f798c52036db0e0cad1"
+    },
+    {
+      "file": "fighters/azar.png",
+      "name": "Azar",
+      "url": "https://pikaso.cdnpk.net/private/production/5709804668/render.png?token=exp=1792108800~hmac=fe925edc6075dcd326c561b7f03f226124ce2fa8b834a4c2a85a24d678e297b6"
+    },
+    {
+      "file": "fighters/corvin.png",
+      "name": "Corvin",
+      "url": "https://pikaso.cdnpk.net/private/production/5709805369/render.png?token=exp=1792108800~hmac=effe643ab870cb80cefcec15ce69bfb1a86268a77bba81523df442464b8eaf5a"
+    },
+    {
+      "file": "fighters/onyx.png",
+      "name": "Onyx",
+      "url": "https://pikaso.cdnpk.net/private/production/5709805751/render.png?token=exp=1792108800~hmac=e3ad156d23ff0a533470a75c356410b220de5d6c2fa603348ec978d2a3900db0"
+    },
+    {
+      "file": "fighters/kavir.png",
+      "name": "Kavir",
+      "url": "https://pikaso.cdnpk.net/private/production/5709807207/render.png?token=exp=1792108800~hmac=8fc89abde2a16a0c16c2d5114f94bb5d865706a842fa2b15d3fad9907b141361"
+    },
+    {
+      "file": "fighters/riptide.png",
+      "name": "Riptide",
+      "url": "https://pikaso.cdnpk.net/private/production/5709806308/render.png?token=exp=1792108800~hmac=6f8c5f35f3fd1731a2cf2149d6907c7583161cc3e2d66646344f086f75916a80"
+    },
+    {
+      "file": "fighters/mira.png",
+      "name": "Mira",
+      "url": "https://pikaso.cdnpk.net/private/production/5709806198/render.png?token=exp=1792108800~hmac=a0f7efb44f5fc3beb5ad32f13cd6c6bade9b05cc0a20d0fccfa067cf396e6a95"
+    }
+  ]
+}
