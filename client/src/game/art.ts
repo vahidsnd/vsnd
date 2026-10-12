@@ -147,6 +147,21 @@ function attackPose(p: Pose, rest: Pose, f: FighterState, def: FighterDef) {
 
 export interface DrawOpts { color: string; time: number; showTag?: string; alpha?: number; flash?: number }
 
+// Painted sprites live in client/public/fighters/<id>.png. Until one loads (or if it is missing),
+// the procedural art is drawn instead, so the game still runs without the files.
+const SPRITE_HEIGHT = 1.5; // sprite height as a multiple of the fighter's hurtbox height
+const spriteCache = new Map<string, HTMLImageElement>();
+function spriteFor(charId: string): HTMLImageElement | null {
+  const id = baseFighterId(charId);
+  let img = spriteCache.get(id);
+  if (!img) {
+    img = new Image();
+    img.src = `${import.meta.env.BASE_URL}fighters/${id}.png`;
+    spriteCache.set(id, img);
+  }
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
+
 export function drawFighter(ctx: CanvasRenderingContext2D, f: FighterState, skinIdx: number, o: DrawOpts) {
   // match rules derive fighters ("blaze~s1.4..."): draw the base art, scaled around the feet
   if (f.charId.includes('~')) {
@@ -208,13 +223,21 @@ export function drawFighter(ctx: CanvasRenderingContext2D, f: FighterState, skin
     for (const s of pose.swoosh) drawSwoosh(ctx, s.x, s.y, s.r, s.a, skin.glow);
   }
 
-  const back = (lead: 'hb' | 'fb') => drawLimb(ctx, pose[lead], lead[0] === 'h', def, skin, true, pose.lead === lead);
-  back('fb'); back('hb');
-  drawBody(ctx, def, skin, w, h, pose, o.time, f);
-  drawLimb(ctx, pose.ff, false, def, skin, false, pose.lead === 'ff');
-  const weapon = def.look.weapon ?? (def.look.body === 'ninja' ? 'katana' : undefined);
-  if (weapon && weapon !== 'claws') drawWeapon(ctx, weapon, pose, f, m, skin, o.time);
-  drawLimb(ctx, pose.hf, true, def, skin, false, pose.lead === 'hf');
+  const sprite = spriteFor(f.charId);
+  if (sprite) {
+    // painted sprite, feet on the origin; the pose transform above still gives squash, lean and spin
+    const sh = h * SPRITE_HEIGHT;
+    const sw = sh * (sprite.naturalWidth / sprite.naturalHeight);
+    ctx.drawImage(sprite, -sw / 2, -sh, sw, sh);
+  } else {
+    const back = (lead: 'hb' | 'fb') => drawLimb(ctx, pose[lead], lead[0] === 'h', def, skin, true, pose.lead === lead);
+    back('fb'); back('hb');
+    drawBody(ctx, def, skin, w, h, pose, o.time, f);
+    drawLimb(ctx, pose.ff, false, def, skin, false, pose.lead === 'ff');
+    const weapon = def.look.weapon ?? (def.look.body === 'ninja' ? 'katana' : undefined);
+    if (weapon && weapon !== 'claws') drawWeapon(ctx, weapon, pose, f, m, skin, o.time);
+    drawLimb(ctx, pose.hf, true, def, skin, false, pose.lead === 'hf');
+  }
   ctx.restore();
 
   // shield bubble (not rotated)
