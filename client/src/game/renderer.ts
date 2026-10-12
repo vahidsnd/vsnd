@@ -221,16 +221,16 @@ export class Renderer {
     }
     if (!isFinite(minX)) { minX = stage.main.x1; maxX = stage.main.x2; minY = -200; maxY = 0; }
     const portrait = this.portrait;
-    if (!portrait && tracked === state.fighters) { minX = Math.min(minX, stage.main.x1 * 0.5); maxX = Math.max(maxX, stage.main.x2 * 0.5); }
     maxY = Math.max(maxY, stage.main.y + 40);
     // the HUD covers the bottom strip, keep the action above it
     const hud = this.hudHeight();
     const viewH = this.h - hud - this.bottomInset;
-    const padX = portrait ? 90 : 200, padY = portrait ? 130 : 170;
+    const padX = portrait ? 90 : 140, padY = portrait ? 130 : 150;
     const bw = maxX - minX + padX * 2, bh = maxY - minY + padY * 2;
     const base = this.baseScale;
     let z = Math.min(this.w / bw, viewH / bh);
-    z = Math.max((portrait ? 0.64 : 0.5) * base, Math.min((portrait ? 1.1 : 1.25) * base, z));
+    // landscape: closer framing so the fighters read clearly on a phone screen
+    z = Math.max((portrait ? 0.64 : 0.6) * base, Math.min((portrait ? 1.1 : 1.6) * base, z));
     const cx = (minX + maxX) / 2;
     // portrait: put the action at ~60% of the arena height (more air above, less island below)
     const anchor = portrait ? 0.6 : 0.5;
