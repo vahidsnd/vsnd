@@ -40,7 +40,8 @@ function tourneyNow(now = Date.now()) {
   if (!config.tourneyTest) return now;
   const week = tourneyPhase(Date.now(), timing()).week;
   const s = tourneySchedule(week, timing());
-  return testStarted ? Math.max(s.start + 1, now) : s.signupStart + 3600_000;
+  // after the operator start, test time is pinned inside the live window (real time may be past it)
+  return testStarted ? s.start + 1 : s.signupStart + 3600_000;
 }
 
 function bracketView(b: Bracket | null, userId: string) {
