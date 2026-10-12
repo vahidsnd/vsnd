@@ -161,6 +161,27 @@ function loadSprite(key: string): HTMLImageElement | null {
   }
   return img.complete && img.naturalWidth > 0 ? img : null;
 }
+// visible-pixel bounding box of each sprite, measured once (the canvases have transparent margins)
+const spriteBoxes = new WeakMap<HTMLImageElement, { x: number; y: number; w: number; h: number }>();
+function spriteBox(img: HTMLImageElement) {
+  let b = spriteBoxes.get(img);
+  if (!b) {
+    const W = img.naturalWidth, H = img.naturalHeight;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d', { willReadFrequently: true })!;
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, W, H).data;
+    let x0 = W, y0 = H, x1 = -1, y1 = -1;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (d[(y * W + x) * 4 + 3] > 40) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    }
+    b = x1 < 0 ? { x: 0, y: 0, w: W, h: H } : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+    spriteBoxes.set(img, b);
+  }
+  return b;
+}
+
 function spriteFor(charId: string, pose: '' | 'attack' | 'jump'): HTMLImageElement | null {
   const id = baseFighterId(charId);
   return (pose && loadSprite(`${id}-${pose}`)) || loadSprite(id);
@@ -230,10 +251,13 @@ export function drawFighter(ctx: CanvasRenderingContext2D, f: FighterState, skin
   const spritePose = f.action === 'attack' ? 'attack' : (!f.grounded && f.action !== 'hitstun' ? 'jump' : '');
   const sprite = spriteFor(f.charId, spritePose);
   if (sprite) {
-    // painted sprite, feet on the origin; the pose transform above still gives squash, lean and spin
+    // painted sprite: the visible figure (not the empty canvas) is scaled to the hurtbox height and its
+    // lowest pixel sits on the origin, so every fighter and pose reads at the same size
+    const box = spriteBox(sprite);
     const sh = h * SPRITE_HEIGHT;
-    const sw = sh * (sprite.naturalWidth / sprite.naturalHeight);
-    ctx.drawImage(sprite, -sw / 2, -sh, sw, sh);
+    const s = sh / box.h;
+    const sw = box.w * s;
+    ctx.drawImage(sprite, box.x, box.y, box.w, box.h, -sw / 2, -sh, sw, sh);
   } else {
     const back = (lead: 'hb' | 'fb') => drawLimb(ctx, pose[lead], lead[0] === 'h', def, skin, true, pose.lead === lead);
     back('fb'); back('hb');
