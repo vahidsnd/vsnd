@@ -1997,11 +1997,23 @@ export class Renderer {
       const col = PLAYER_COLORS[f.slot];
       ctx.save();
       ctx.globalAlpha = f.stocks <= 0 ? 0.4 : 1;
-      ctx.fillStyle = 'rgba(20,11,36,0.78)';
-      ctx.strokeStyle = col; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.roundRect(x, y0, cardW, H, 12); ctx.fill(); ctx.stroke();
+      // cartoon card: hard ink shadow, bevelled fill, ink outline with a coloured inner rim
+      ctx.fillStyle = INK;
+      ctx.beginPath(); ctx.roundRect(x, y0 + 4, cardW, H, 14); ctx.fill();
+      const cg = ctx.createLinearGradient(0, y0, 0, y0 + H);
+      cg.addColorStop(0, '#3a2d66'); cg.addColorStop(1, '#1d1640');
+      ctx.fillStyle = cg;
+      ctx.strokeStyle = INK; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.roundRect(x, y0, cardW, H, 14); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = col; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(x + 3, y0 + 3, cardW - 6, H - 6, 11); ctx.stroke();
       const pcx = x + 6 + pr, pcy = y0 + H / 2;
       ctx.drawImage(this.portraitImg(baseFighterId(f.charId), displaySkin(state, f.slot), col), pcx - pr, pcy - pr, pr * 2, pr * 2);
+      // comic ring around the portrait
+      ctx.strokeStyle = INK; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(pcx, pcy, pr, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(pcx, pcy, pr - 2, 0, Math.PI * 2); ctx.stroke();
       const tx = pcx + pr + 5;
       // damage %
       const d = f.damage;
@@ -2063,6 +2075,11 @@ export class Renderer {
       const sec = Math.ceil((state.timer || 0) / TICK_RATE);
       const s = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
       ctx.save(); ctx.font = '900 24px Vazirmatn, system-ui, sans-serif'; ctx.textAlign = 'center';
+      // comic plate behind the clock
+      const plW = 118, plX = this.w / 2 - plW / 2;
+      ctx.fillStyle = INK; ctx.beginPath(); ctx.roundRect(plX, 14 + 3, plW, 40, 14); ctx.fill();
+      ctx.fillStyle = '#2a1f4f'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.roundRect(plX, 14, plW, 40, 14); ctx.fill(); ctx.stroke();
       ctx.lineWidth = 5; ctx.strokeStyle = INK; ctx.strokeText(s, this.w / 2, 34);
       ctx.fillStyle = sec <= 10 ? '#ff4f6d' : '#fff'; ctx.fillText(s, this.w / 2, 34); ctx.restore();
     }
