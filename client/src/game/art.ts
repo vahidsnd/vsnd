@@ -147,8 +147,8 @@ function attackPose(p: Pose, rest: Pose, f: FighterState, def: FighterDef) {
 
 export interface DrawOpts { color: string; time: number; showTag?: string; alpha?: number; flash?: number }
 
-// Painted sprites live in client/public/fighters/<id>.png, with optional poses <id>-attack.png and
-// <id>-jump.png. A missing pose falls back to the idle sprite; a missing idle sprite falls back to
+// Painted sprites live in client/public/fighters/<id>.webp, with optional poses <id>-attack.webp and
+// <id>-jump.webp. A missing pose falls back to the idle sprite; a missing idle sprite falls back to
 // the procedural art, so the game still runs without the files.
 const SPRITE_HEIGHT = 1.5; // sprite height as a multiple of the fighter's hurtbox height
 const spriteCache = new Map<string, HTMLImageElement>();
@@ -156,7 +156,7 @@ function loadSprite(key: string): HTMLImageElement | null {
   let img = spriteCache.get(key);
   if (!img) {
     img = new Image();
-    img.src = `${import.meta.env.BASE_URL}fighters/${key}.png`;
+    img.src = `${import.meta.env.BASE_URL}fighters/${key}.webp`;
     spriteCache.set(key, img);
   }
   return img.complete && img.naturalWidth > 0 ? img : null;
