@@ -189,6 +189,19 @@ const SPRITE_FALLBACK: Record<SpritePose, string[]> = {
   // the fire pose uses the bare gesture (the shot itself is drawn from the projectile sprite)
   punch: ['punch', 'attack'], kick: ['kick', 'attack'], fire: ['punch', 'attack'],
 };
+// walk cycle: client/public/fighters/<id>-walk0..3.webp (same size, same feet line)
+function walkFrameFor(charId: string, x: number): HTMLImageElement | null {
+  const id = baseFighterId(charId);
+  const frames: HTMLImageElement[] = [];
+  for (let i = 0; i < 4; i++) {
+    const s = loadSprite(`${id}-walk${i}`);
+    if (!s) return null;
+    frames.push(s);
+  }
+  const step = ((Math.floor(x / 10) % 4) + 4) % 4;
+  return frames[step];
+}
+
 function spriteFor(charId: string, pose: SpritePose): HTMLImageElement | null {
   const id = baseFighterId(charId);
   for (const p of SPRITE_FALLBACK[pose]) { const s = loadSprite(`${id}-${p}`); if (s) return s; }
@@ -279,7 +292,12 @@ export function drawFighter(ctx: CanvasRenderingContext2D, f: FighterState, skin
     // walking: the upper body stays, the lower body swings from the hip. The phase follows the distance
     // walked, so the legs step in turn, go forward and back with the fighter, and stop when it stops.
     const walking = (f.action === 'walk' || f.action === 'run') && f.grounded && spritePose === '';
-    if (walking) {
+    const frame = walking ? walkFrameFor(f.charId, f.x) : null;
+    if (frame) {
+      // real walk cycle: four drawn frames, advanced by the distance walked (so it steps forward and back)
+      const fs = sh / frame.naturalHeight, fw = frame.naturalWidth * fs;
+      ctx.drawImage(frame, -fw / 2, -sh, fw, sh);
+    } else if (walking) {
       const speed = Math.min(1, Math.abs(f.vx) / 8);
       const swing = Math.sin(f.x * 0.42) * (0.12 + 0.1 * speed);
       const hip = y0 + sh * 0.56;
