@@ -198,8 +198,11 @@ function walkFrameFor(charId: string, x: number): HTMLImageElement | null {
     if (!s) return null;
     frames.push(s);
   }
-  const step = ((Math.floor(x / 10) % 4) + 4) % 4;
-  return frames[step];
+  // one gait cycle (4 frames) spans ~136px of travel, so a walk is ~1.5 cycles a second, not a flicker.
+  // The position in the cycle is continuous: the two neighbouring frames are blended for smooth motion.
+  const p = x / 34;
+  const i0 = ((Math.floor(p) % 4) + 4) % 4;
+  return { a: frames[i0], b: frames[(i0 + 1) % 4], t: p - Math.floor(p) };
 }
 
 function spriteFor(charId: string, pose: SpritePose): HTMLImageElement | null {
@@ -292,11 +295,17 @@ export function drawFighter(ctx: CanvasRenderingContext2D, f: FighterState, skin
     // walking: the upper body stays, the lower body swings from the hip. The phase follows the distance
     // walked, so the legs step in turn, go forward and back with the fighter, and stop when it stops.
     const walking = (f.action === 'walk' || f.action === 'run') && f.grounded && spritePose === '';
-    const frame = walking ? walkFrameFor(f.charId, f.x) : null;
-    if (frame) {
-      // real walk cycle: four drawn frames, advanced by the distance walked (so it steps forward and back)
-      const fs = sh / frame.naturalHeight, fw = frame.naturalWidth * fs;
-      ctx.drawImage(frame, -fw / 2, -sh, fw, sh);
+    const cyc = walking ? walkFrameFor(f.charId, f.x) : null;
+    if (cyc) {
+      // real walk cycle: four drawn frames, blended by the distance walked (forward and back)
+      const fs = sh / cyc.a.naturalHeight, fw = cyc.a.naturalWidth * fs;
+      const bob = Math.abs(Math.sin(cyc.t * Math.PI)) * sh * 0.012; // a soft lift on each step
+      const a0 = ctx.globalAlpha;
+      ctx.globalAlpha = a0 * (1 - cyc.t);
+      ctx.drawImage(cyc.a, -fw / 2, -sh - bob, fw, sh);
+      ctx.globalAlpha = a0 * cyc.t;
+      ctx.drawImage(cyc.b, -fw / 2, -sh - bob, fw, sh);
+      ctx.globalAlpha = a0;
     } else if (walking) {
       const speed = Math.min(1, Math.abs(f.vx) / 8);
       const swing = Math.sin(f.x * 0.42) * (0.12 + 0.1 * speed);
