@@ -1194,13 +1194,35 @@ export function star(ctx: CanvasRenderingContext2D, x: number, y: number, r: num
   ctx.restore();
 }
 
-export function drawProjectile(ctx: CanvasRenderingContext2D, p: ProjectileState, time: number, glow: string) {
+// a fighter's own projectile: client/public/projectiles/<id>.webp (e.g. the shark's water blast)
+const projectileCache = new Map<string, HTMLImageElement>();
+export function projectileArtFor(charId: string | undefined): HTMLImageElement | null {
+  if (!charId) return null;
+  const id = baseFighterId(charId);
+  let img = projectileCache.get(id);
+  if (!img) {
+    img = new Image();
+    img.src = `${import.meta.env.BASE_URL}projectiles/${id}.webp`;
+    projectileCache.set(id, img);
+  }
+  return img.complete && img.naturalWidth > 0 ? img : null;
+}
+
+export function drawProjectile(ctx: CanvasRenderingContext2D, p: ProjectileState, time: number, glow: string, art: HTMLImageElement | null = null) {
   const r = p.def.r;
   ctx.save();
   ctx.translate(p.x, p.y);
   ctx.lineWidth = 3; ctx.strokeStyle = INK;
   if (p.kind.startsWith('sp_')) { drawSpellProjectile(ctx, p, time); ctx.restore(); return; }
   if (p.kind === 'it_bomb') { ctx.rotate(time * 8 * Math.sign(p.vx || 1)); drawItemIcon(ctx, 'bomb', r * 0.95, time); ctx.restore(); return; }
+  if (art) {
+    // the fighter's own shot, flipped to the way it travels
+    const w = Math.max(30, r * 3.4), hgt = w * (art.naturalHeight / art.naturalWidth);
+    ctx.scale(Math.sign(p.vx || p.facing || 1), 1);
+    ctx.drawImage(art, -w / 2, -hgt / 2, w, hgt);
+    ctx.restore();
+    return;
+  }
   switch (p.kind) {
     case 'fireball': {
       for (let i = 4; i > 0; i--) {

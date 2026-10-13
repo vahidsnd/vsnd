@@ -1,5 +1,5 @@
 import { COUNTDOWN, getFighter, baseFighterId, getStage, platformPos, TICK_RATE, type GameEvent, type GameState, type StageDef, getSpell, titleText } from '@nb/shared';
-import { drawFighter, drawProjectile, INK, PLAYER_COLORS, previewFighter, shade, star } from './art.ts';
+import { drawFighter, drawProjectile, INK, PLAYER_COLORS, previewFighter, projectileArtFor, shade, star } from './art.ts';
 import { t, isFa } from '../i18n.ts';
 import { prefs } from '../services/prefs.ts';
 import { drawItems, drawBuffs, hudDamageText, drawBossBar, drawWave, ITEM_COLORS, ITEM_NAMES } from './modefx.ts';
@@ -271,7 +271,7 @@ export class Renderer {
     for (const p of state.projectiles) {
       const owner = state.fighters[p.owner];
       const def = getFighter(owner?.charId ?? 'blaze');
-      drawProjectile(ctx, p, opts.time, def.skins[owner?.skin ?? 0]?.glow ?? '#fff');
+      drawProjectile(ctx, p, opts.time, def.skins[owner?.skin ?? 0]?.glow ?? '#fff', projectileArtFor(owner?.charId));
     }
 
     // fighters (local player last so it's on top)
