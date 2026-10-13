@@ -186,7 +186,8 @@ export type SpritePose = '' | 'attack' | 'jump' | 'jumplong' | 'sit' | 'punch' |
 // a pose without its own file borrows the closest one, then falls back to the standing sprite
 const SPRITE_FALLBACK: Record<SpritePose, string[]> = {
   '': [], attack: ['attack'], jump: ['jump'], jumplong: ['jumplong', 'jump'], sit: ['sit'],
-  punch: ['punch', 'attack'], kick: ['kick', 'attack'], fire: ['fire', 'attack'],
+  // the fire pose uses the bare gesture (the shot itself is drawn from the projectile sprite)
+  punch: ['punch', 'attack'], kick: ['kick', 'attack'], fire: ['punch', 'attack'],
 };
 function spriteFor(charId: string, pose: SpritePose): HTMLImageElement | null {
   const id = baseFighterId(charId);
