@@ -190,7 +190,7 @@ const SPRITE_FALLBACK: Record<SpritePose, string[]> = {
   punch: ['punch', 'attack'], kick: ['kick', 'attack'], fire: ['punch', 'attack'],
 };
 // walk cycle: client/public/fighters/<id>-walk0..3.webp (same size, same feet line)
-function walkFrameFor(charId: string, x: number): HTMLImageElement | null {
+function walkFrameFor(charId: string, x: number): { a: HTMLImageElement; b: HTMLImageElement; t: number } | null {
   const id = baseFighterId(charId);
   const frames: HTMLImageElement[] = [];
   for (let i = 0; i < 4; i++) {
