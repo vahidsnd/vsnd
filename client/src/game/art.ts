@@ -189,20 +189,22 @@ const SPRITE_FALLBACK: Record<SpritePose, string[]> = {
   // the fire pose uses the bare gesture (the shot itself is drawn from the projectile sprite)
   punch: ['punch', 'attack'], kick: ['kick', 'attack'], fire: ['punch', 'attack'],
 };
-// walk cycle: client/public/fighters/<id>-walk0..3.webp (same size, same feet line)
+// walk cycle: client/public/fighters/<id>-walk0..N-1.webp (N = 4 or 8; same size, same feet line)
+const WALK_CYCLE_PX = 136; // one full gait cycle covers this much travel, whatever its frame count
 function walkFrameFor(charId: string, x: number): { a: HTMLImageElement; b: HTMLImageElement; t: number } | null {
   const id = baseFighterId(charId);
   const frames: HTMLImageElement[] = [];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 8; i++) {
     const s = loadSprite(`${id}-walk${i}`);
-    if (!s) return null;
+    if (!s) break;
     frames.push(s);
   }
-  // one gait cycle (4 frames) spans ~136px of travel, so a walk is ~1.5 cycles a second, not a flicker.
-  // The position in the cycle is continuous: the two neighbouring frames are blended for smooth motion.
-  const p = x / 34;
-  const i0 = ((Math.floor(p) % 4) + 4) % 4;
-  return { a: frames[i0], b: frames[(i0 + 1) % 4], t: p - Math.floor(p) };
+  if (frames.length < 4) return null;
+  // the position in the cycle is continuous: the two neighbouring frames are blended for smooth motion
+  const n = frames.length;
+  const p = x / (WALK_CYCLE_PX / n);
+  const i0 = ((Math.floor(p) % n) + n) % n;
+  return { a: frames[i0], b: frames[(i0 + 1) % n], t: p - Math.floor(p) };
 }
 
 function spriteFor(charId: string, pose: SpritePose): HTMLImageElement | null {
