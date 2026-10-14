@@ -307,10 +307,13 @@ input[type=range] { accent-color: var(--accent); flex: 1; min-width: 100px; }
 .tb.on { transform: scale(.9); filter: brightness(1.35); }
 .tb.hl { animation: hl 1s ease-in-out infinite; z-index: 2; }
 @keyframes hl { 0%, 100% { box-shadow: 0 0 0 0 #ffc93ccc; } 50% { box-shadow: 0 0 0 10px #ffc93c00; } }
-.tb-attack { width: 80px; height: 80px; right: 0; bottom: 0; background: #e0245fcc; font-size: 26px; }
-.tb-special { width: 64px; height: 64px; right: 88px; bottom: 2px; background: #2f7dffcc; font-size: 22px; }
-.tb-jump { width: 64px; height: 64px; right: 8px; bottom: 90px; background: #17b67acc; }
-.tb-shield { width: 52px; height: 52px; right: 160px; bottom: 50px; background: #7a5cffcc; }
+/* PlayStation-style face buttons: ✕ blue (attack), ● red (special), ▲ green (jump), ■ pink (shield) */
+.tb { box-shadow: 0 4px 0 #0009, inset 0 2px 0 #ffffff55; border-width: 2.5px; }
+.tb .ps { font-size: 26px; line-height: 1; text-shadow: 0 2px 0 #0008; display: flex; flex-direction: column; align-items: center; }
+.tb-attack { width: 80px; height: 80px; right: 0; bottom: 0; background: radial-gradient(circle at 35% 25%, #ffffff66, transparent 42%), linear-gradient(180deg, #6fa8ff, #2f63e0); border-color: #dfe9ff; font-size: 26px; }
+.tb-special { width: 64px; height: 64px; right: 88px; bottom: 2px; background: radial-gradient(circle at 35% 25%, #ffffff66, transparent 42%), linear-gradient(180deg, #ff7a88, #e0293f); border-color: #ffd7dc; font-size: 22px; }
+.tb-jump { width: 64px; height: 64px; right: 8px; bottom: 90px; background: radial-gradient(circle at 35% 25%, #ffffff66, transparent 42%), linear-gradient(180deg, #5ef0a0, #1fae5c); border-color: #d2ffe6; }
+.tb-shield { width: 52px; height: 52px; right: 160px; bottom: 50px; background: radial-gradient(circle at 35% 25%, #ffffff66, transparent 42%), linear-gradient(180deg, #ff8ad6, #d62a9c); border-color: #ffd6f2; }
 .tb-grab { width: 50px; height: 50px; right: 84px; bottom: 80px; background: #d99a00cc; }
 .tb-smash { width: 50px; height: 50px; right: 146px; bottom: 120px; background: #ff7a1acc; }
 .tb-magic { width: 50px; height: 50px; right: 78px; bottom: 150px; background: #3a2470cc; border-color: #b48cff88; display: none; }

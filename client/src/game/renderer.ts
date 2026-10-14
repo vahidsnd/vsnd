@@ -134,6 +134,11 @@ export class Renderer {
             this.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: rnd(10, 18), color: i % 2 ? '#ffffff' : color, size: rnd(1.6, 2.8), kind: 'spark' });
           }
           this.particles.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0, max: 12, color, size: 12 + e.kb / 5, kind: 'ring' });
+          // excited burst on strong hits: a star flash plus a second, lagging ring
+          if (!this.lowFx && e.kb > 40) {
+            this.particles.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0, max: 14, color: '#ffffff', size: 16 + e.kb / 6, kind: 'star', rot: Math.random() * Math.PI });
+            this.particles.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0, max: 18, color: '#ffffff88', size: 22 + e.kb / 3, kind: 'ring' });
+          }
           if (e.kb > 80) this.particles.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0, max: 10, color: '#ffffff', size: 30 + e.kb / 4, kind: 'slash', rot: Math.random() * Math.PI });
           if (prefs.dmgNumbers && e.dmg >= 1) this.particles.push({ x: e.x + rnd(-8, 8), y: e.y - 18, vx: 0, vy: -1.1, life: 0, max: 34, color: e.kb > 90 ? '#ff6b7a' : '#ffffff', size: 15 + Math.min(10, e.dmg * 0.5), kind: 'num', text: String(Math.round(e.dmg)) });
           this.flashes[e.victim] = 1;

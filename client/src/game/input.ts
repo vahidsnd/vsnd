@@ -110,9 +110,9 @@ export class TouchControls implements InputSource {
         <button data-b="${Btn.GRAB}" data-k="grab" class="tb tb-grab">${svgHtml('grab', 22)}</button>
         <button data-b="${Btn.STRONG}" data-k="smash" class="tb tb-smash">${svgHtml('zap', 22)}</button>
         <button data-b="${Btn.MAGIC}" data-k="magic" class="tb tb-magic">${svgHtml('sparkles', 22)}</button>
-        <button data-b="${Btn.JUMP}" data-k="jump" class="tb tb-jump"><span>${svgHtml('up', 22)}<small>${t('btnJump')}</small></span></button>
-        <button data-b="${Btn.SPECIAL}" data-k="special" class="tb tb-special"><span>B<small>${t('btnSpecial')}</small></span></button>
-        <button data-b="${Btn.ATTACK}" data-k="attack" class="tb tb-attack"><span>A<small>${t('btnAttack')}</small></span></button>
+        <button data-b="${Btn.JUMP}" data-k="jump" class="tb tb-jump"><span class="ps">▲<small>${t('btnJump')}</small></span></button>
+        <button data-b="${Btn.SPECIAL}" data-k="special" class="tb tb-special"><span class="ps">●<small>${t('btnSpecial')}</small></span></button>
+        <button data-b="${Btn.ATTACK}" data-k="attack" class="tb tb-attack"><span class="ps">✕<small>${t('btnAttack')}</small></span></button>
       </div>`;
     parent.appendChild(this.el);
     this.base = this.el.querySelector('.stick-base') as HTMLDivElement;
