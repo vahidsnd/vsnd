@@ -99,7 +99,7 @@ export const IAP_PRODUCTS: IapProduct[] = [
   { id: 'gems_500', name: 'Box of Gems', nameFa: 'جعبه الماس', gems: 500, consumable: true, badge: 'Popular', badgeFa: 'محبوب', price: { googleplay: '$4.99', myket: '۴۹٬۰۰۰ تومان', web: '۴۹٬۰۰۰ تومان' } },
   { id: 'gems_1200', name: 'Chest of Gems', nameFa: 'صندوق الماس', gems: 1200, consumable: true, badge: '+20%', badgeFa: '۲۰٪ بیشتر', price: { googleplay: '$9.99', myket: '۷۹٬۰۰۰ تومان', web: '۷۹٬۰۰۰ تومان' } },
   { id: 'gems_2600', name: 'Vault of Gems', nameFa: 'گاوصندوق الماس', gems: 2600, consumable: true, badge: '+30%', badgeFa: '۳۰٪ بیشتر', price: { googleplay: '$19.99', myket: '۹۹٬۰۰۰ تومان', web: '۹۹٬۰۰۰ تومان' } },
-  { id: 'gems_7000', name: 'Mountain of Gems', nameFa: 'کوه الماس', gems: 7000, consumable: true, badge: 'Best value', badgeFa: 'بهترین ارزش', price: { googleplay: '$49.99', myket: '۹۹٬۰۰۰ تومان', web: '۹۹٬۰۰۰ تومان' } },
+  { id: 'gems_7000', name: 'Mountain of Gems', nameFa: 'کوه الماس', gems: 7000, consumable: true, badge: 'Best value', badgeFa: 'بهترین ارزش', price: { googleplay: '$49.99', myket: '۱۵۰٬۰۰۰ تومان', web: '۱۵۰٬۰۰۰ تومان' } },
   {
     id: 'starter_pack', name: 'Starter Pack', nameFa: 'بسته شروع', gems: 300, coins: 5000, fighters: ['zephyr'], skins: ['blaze1'],
     consumable: true, oneTime: true, badge: '-80%', badgeFa: '۸۰٪ تخفیف', price: { googleplay: '$2.99', myket: '۳۹٬۰۰۰ تومان', web: '۳۹٬۰۰۰ تومان' },
