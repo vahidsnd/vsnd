@@ -12,12 +12,12 @@ export const config = {
   // allow unverified "sandbox" purchases (web build / local testing). NEVER enable in production.
   iapSandbox: process.env.IAP_SANDBOX === '1' || process.env.NODE_ENV !== 'production',
   googlePlay: {
-    packageName: process.env.GP_PACKAGE ?? 'ir.neonbrawl.game',
+    packageName: process.env.GP_PACKAGE ?? 'com.vahidsnd.neonbrawl',
     // service-account JSON (stringified) with access to the Play Developer API
     serviceAccount: process.env.GP_SERVICE_ACCOUNT ?? '',
   },
   myket: {
-    packageName: process.env.MYKET_PACKAGE ?? 'ir.neonbrawl.game',
+    packageName: process.env.MYKET_PACKAGE ?? 'com.vahidsnd.neonbrawl',
     accessToken: process.env.MYKET_ACCESS_TOKEN ?? '',
   },
   matchmaking: {

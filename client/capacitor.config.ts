@@ -9,7 +9,7 @@ const storePlugins: Record<string, string[]> = {
 };
 
 const config: CapacitorConfig = {
-  appId: 'ir.neonbrawl.game',
+  appId: 'com.vahidsnd.neonbrawl',
   appName: 'Neon Brawl',
   webDir: 'dist',
   android: { backgroundColor: '#0d0620', includePlugins: storePlugins[market] },

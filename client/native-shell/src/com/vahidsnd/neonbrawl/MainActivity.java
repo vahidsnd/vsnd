@@ -1,4 +1,4 @@
-package ir.neonbrawl.game;
+package com.vahidsnd.neonbrawl;
 
 import android.app.Activity;
 import android.content.Intent;
