@@ -143,3 +143,45 @@ export function retentionSummary(store: AnalyticsStore, today: string, window = 
   }
   return out as Record<'d1' | 'd7' | 'd30', number | null>;
 }
+
+// ---- engagement funnel ---------------------------------------------------------------------------
+/** The per-player fields the funnel reads (no ids, names or contact data). */
+export interface FunnelPlayer {
+  installDay?: string; lastDay?: string; tutorial: string[];
+  matches: number; level: number; payer: boolean;
+}
+export const FUNNEL_STAGES = [
+  { id: 'installed', fa: 'نصب کرده', en: 'Installed' },
+  { id: 'tutorial', fa: 'آموزش اولیه را تمام کرده', en: 'Finished basic tutorial' },
+  { id: 'match1', fa: 'اولین مسابقه', en: 'First match' },
+  { id: 'match5', fa: '۵ مسابقه', en: '5 matches' },
+  { id: 'match20', fa: '۲۰ مسابقه', en: '20 matches' },
+  { id: 'level5', fa: 'سطح ۵', en: 'Level 5' },
+  { id: 'level10', fa: 'سطح ۱۰', en: 'Level 10' },
+  { id: 'payer', fa: 'خریدار', en: 'Paid at least once' },
+] as const;
+export type FunnelStage = (typeof FUNNEL_STAGES)[number]['id'];
+
+/** Players who reached each stage (cumulative), the share of installs, and where the rest stopped. */
+export function funnelSummary(players: FunnelPlayer[], today: string) {
+  const reached: Record<FunnelStage, number> = { installed: 0, tutorial: 0, match1: 0, match5: 0, match20: 0, level5: 0, level10: 0, payer: 0 };
+  const stoppedAt: Record<string, number> = {};
+  let active7 = 0;
+  for (const p of players) {
+    if (p.lastDay && dayDiff(p.lastDay, today) < 7) active7++;
+    const hit: FunnelStage[] = ['installed'];
+    if (p.tutorial.includes('basic')) hit.push('tutorial');
+    if (p.matches >= 1) hit.push('match1');
+    if (p.matches >= 5) hit.push('match5');
+    if (p.matches >= 20) hit.push('match20');
+    if (p.level >= 5) hit.push('level5');
+    if (p.level >= 10) hit.push('level10');
+    if (p.payer) hit.push('payer');
+    for (const s of hit) reached[s]++;
+    const last = hit[hit.length - 1];
+    if (last !== 'payer') stoppedAt[last] = (stoppedAt[last] ?? 0) + 1;
+  }
+  const total = reached.installed;
+  const rows = FUNNEL_STAGES.map((s) => ({ ...s, count: reached[s.id], pct: total ? reached[s.id] / total : null }));
+  return { total, active7, rows, stoppedAt };
+}

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import type http from 'node:http';
 import {
-  analyticsSeries, cleanReward, dayKey, addDays, IAP_PRODUCTS, remoteConfig, rewardEmpty, retentionSummary, sendMail, sumByPrefix, DEFAULT_REMOTE_CONFIG,
+  analyticsSeries, cleanReward, dayKey, addDays, funnelSummary, IAP_PRODUCTS, remoteConfig, rewardEmpty, retentionSummary, sendMail, sumByPrefix, DEFAULT_REMOTE_CONFIG,
 } from '@nb/shared';
 import { config } from './config.ts';
 import { allUsers, analyticsStore, dbMeta, leaderboard, markDirty, socialDb, storage, userById, type UserRec } from './db.ts';
@@ -29,6 +29,10 @@ export const adminRoutes: Record<string, Handler> = {
       live: { online: socketsByUser.size, matches: activeMatches.size, queues: queueSizes(), spectators: spectatorCount(), users: users.length },
       series: analyticsSeries(store, today, 30),
       retention: retentionSummary(store, today),
+      funnel: funnelSummary(users.map((u) => ({
+        installDay: u.act?.installDay, lastDay: u.act?.lastDay, tutorial: u.profile.tutorial ?? [],
+        matches: u.profile.stats.matches, level: u.profile.level, payer: !!u.profile.payer,
+      })), today),
       revenue: { byProduct: sumByPrefix(store, 'iap:'), byMarket: sumByPrefix(store, 'iapm:'), totals: sumByPrefix(store, 'rev_'), last30: sumByPrefix(store, 'rev_', addDays(today, -29)), prices },
       ads: { total: sumByPrefix(store, 'ads')[''] ?? 0, last30: sumByPrefix(store, 'ads', addDays(today, -29))[''] ?? 0 },
       events: sumByPrefix(store, 'ev:', addDays(today, -6)),

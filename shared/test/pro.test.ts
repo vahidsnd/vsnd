@@ -5,7 +5,7 @@ import {
   ReplayRecorder, encodeReplay, decodeReplay, simulateReplay, ReplayPlayer, forfeitSlot, expandInputs, REPLAY_PREFIX,
   validateRemoteConfig, mergeRemoteConfig, DEFAULT_REMOTE_CONFIG, setRemoteConfig, remoteConfig, activeMotd, matchCoinMultiplier,
   newProfile, applyMatch, shopCatalog, spinWheel, dayKey,
-  newAnalyticsStore, aggregateEvents, noteActive, noteInstall, analyticsSeries, retentionSummary, sumByPrefix, parsePrice, addDays, pruneAnalytics,
+  newAnalyticsStore, aggregateEvents, noteActive, noteInstall, analyticsSeries, retentionSummary, sumByPrefix, parsePrice, addDays, pruneAnalytics, funnelSummary,
   type MatchConfig, type GameState,
 } from '../src/index.ts';
 
@@ -138,4 +138,26 @@ test('analytics: whitelisted aggregation, DAU and D1/D7/D30 retention', () => {
   assert.equal(sumByPrefix(st, 'ev:screen')[''], 2);
   pruneAnalytics(st, addDays('2026-10-01', 200));
   assert.deepEqual(st.days, {});
+});
+
+test('funnel: cumulative stages, share of installs and where players stop', () => {
+  const today = '2026-10-15';
+  const p = (o: Partial<Parameters<typeof funnelSummary>[0][number]>) => ({ tutorial: [], matches: 0, level: 1, payer: false, lastDay: today, ...o });
+  const players = [
+    p({ tutorial: ['basic'], matches: 25, level: 11, payer: true }),
+    p({ tutorial: ['basic'], matches: 6, level: 5 }),
+    p({ tutorial: ['basic'], matches: 1 }),
+    p({ lastDay: '2026-09-01' }),
+  ];
+  const f = funnelSummary(players, today);
+  const at = (id: string) => f.rows.find((r) => r.id === id)!.count;
+  assert.equal(f.total, 4);
+  assert.equal(at('tutorial'), 3);
+  assert.equal(at('match5'), 2);
+  assert.equal(at('match20'), 1);
+  assert.equal(at('payer'), 1);
+  assert.equal(f.rows.find((r) => r.id === 'tutorial')!.pct, 0.75);
+  assert.equal(f.active7, 3);
+  assert.equal(f.stoppedAt['installed'], 1);
+  assert.equal(f.stoppedAt['match1'], 1);
 });
