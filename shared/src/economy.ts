@@ -95,26 +95,26 @@ export interface IapProduct {
 }
 
 export const IAP_PRODUCTS: IapProduct[] = [
-  { id: 'gems_80', name: 'Pouch of Gems', nameFa: 'کیسه الماس', gems: 80, consumable: true, price: { googleplay: '$0.99', myket: '۲۹٬۰۰۰ تومان', web: '۲۹٬۰۰۰ تومان' } },
-  { id: 'gems_500', name: 'Box of Gems', nameFa: 'جعبه الماس', gems: 500, consumable: true, badge: 'Popular', badgeFa: 'محبوب', price: { googleplay: '$4.99', myket: '۱۴۹٬۰۰۰ تومان', web: '۱۴۹٬۰۰۰ تومان' } },
-  { id: 'gems_1200', name: 'Chest of Gems', nameFa: 'صندوق الماس', gems: 1200, consumable: true, badge: '+20%', badgeFa: '۲۰٪ بیشتر', price: { googleplay: '$9.99', myket: '۲۹۹٬۰۰۰ تومان', web: '۲۹۹٬۰۰۰ تومان' } },
-  { id: 'gems_2600', name: 'Vault of Gems', nameFa: 'گاوصندوق الماس', gems: 2600, consumable: true, badge: '+30%', badgeFa: '۳۰٪ بیشتر', price: { googleplay: '$19.99', myket: '۵۹۹٬۰۰۰ تومان', web: '۵۹۹٬۰۰۰ تومان' } },
-  { id: 'gems_7000', name: 'Mountain of Gems', nameFa: 'کوه الماس', gems: 7000, consumable: true, badge: 'Best value', badgeFa: 'بهترین ارزش', price: { googleplay: '$49.99', myket: '۱٬۴۹۹٬۰۰۰ تومان', web: '۱٬۴۹۹٬۰۰۰ تومان' } },
+  { id: 'gems_80', name: 'Pouch of Gems', nameFa: 'کیسه الماس', gems: 80, consumable: true, price: { googleplay: '$0.99', myket: '۱۹٬۰۰۰ تومان', web: '۱۹٬۰۰۰ تومان' } },
+  { id: 'gems_500', name: 'Box of Gems', nameFa: 'جعبه الماس', gems: 500, consumable: true, badge: 'Popular', badgeFa: 'محبوب', price: { googleplay: '$4.99', myket: '۴۹٬۰۰۰ تومان', web: '۴۹٬۰۰۰ تومان' } },
+  { id: 'gems_1200', name: 'Chest of Gems', nameFa: 'صندوق الماس', gems: 1200, consumable: true, badge: '+20%', badgeFa: '۲۰٪ بیشتر', price: { googleplay: '$9.99', myket: '۷۹٬۰۰۰ تومان', web: '۷۹٬۰۰۰ تومان' } },
+  { id: 'gems_2600', name: 'Vault of Gems', nameFa: 'گاوصندوق الماس', gems: 2600, consumable: true, badge: '+30%', badgeFa: '۳۰٪ بیشتر', price: { googleplay: '$19.99', myket: '۹۹٬۰۰۰ تومان', web: '۹۹٬۰۰۰ تومان' } },
+  { id: 'gems_7000', name: 'Mountain of Gems', nameFa: 'کوه الماس', gems: 7000, consumable: true, badge: 'Best value', badgeFa: 'بهترین ارزش', price: { googleplay: '$49.99', myket: '۹۹٬۰۰۰ تومان', web: '۹۹٬۰۰۰ تومان' } },
   {
     id: 'starter_pack', name: 'Starter Pack', nameFa: 'بسته شروع', gems: 300, coins: 5000, fighters: ['zephyr'], skins: ['blaze1'],
-    consumable: true, oneTime: true, badge: '-80%', badgeFa: '۸۰٪ تخفیف', price: { googleplay: '$2.99', myket: '۸۹٬۰۰۰ تومان', web: '۸۹٬۰۰۰ تومان' },
+    consumable: true, oneTime: true, badge: '-80%', badgeFa: '۸۰٪ تخفیف', price: { googleplay: '$2.99', myket: '۳۹٬۰۰۰ تومان', web: '۳۹٬۰۰۰ تومان' },
   },
-  { id: 'no_ads', name: 'Remove Ads', nameFa: 'حذف تبلیغات', noAds: true, gems: 100, consumable: false, price: { googleplay: '$3.99', myket: '۱۱۹٬۰۰۰ تومان', web: '۱۱۹٬۰۰۰ تومان' } },
-  { id: 'season_pass', name: 'Season Pass', nameFa: 'پاس فصل', pass: true, consumable: true, price: { googleplay: '$7.99', myket: '۲۳۹٬۰۰۰ تومان', web: '۲۳۹٬۰۰۰ تومان' } },
+  { id: 'no_ads', name: 'Remove Ads', nameFa: 'حذف تبلیغات', noAds: true, gems: 100, consumable: false, price: { googleplay: '$3.99', myket: '۵۹٬۰۰۰ تومان', web: '۵۹٬۰۰۰ تومان' } },
+  { id: 'season_pass', name: 'Season Pass', nameFa: 'پاس فصل', pass: true, consumable: true, price: { googleplay: '$7.99', myket: '۸۹٬۰۰۰ تومان', web: '۸۹٬۰۰۰ تومان' } },
   {
     id: 'all_fighters', name: 'Legends Bundle', nameFa: 'بسته اسطوره‌ها', fighters: FIGHTERS.map((f) => f.id), gems: 500,
-    consumable: false, badge: 'All fighters', badgeFa: 'همه مبارزها', price: { googleplay: '$14.99', myket: '۴۴۹٬۰۰۰ تومان', web: '۴۴۹٬۰۰۰ تومان' },
+    consumable: false, badge: 'All fighters', badgeFa: 'همه مبارزها', price: { googleplay: '$14.99', myket: '۹۹٬۰۰۰ تومان', web: '۹۹٬۰۰۰ تومان' },
   },
   // live ops (granted by grantLiveopsIap in liveops.ts)
-  { id: 'vip_month', name: 'VIP – 30 days', nameFa: 'VIP – ۳۰ روز', consumable: true, badge: 'VIP', badgeFa: 'VIP', price: { googleplay: '$2.99', myket: '۸۹٬۰۰۰ تومان', web: '۸۹٬۰۰۰ تومان' } },
-  { id: 'comeback_pack', name: 'Comeback Pack', nameFa: 'بسته بازگشت', consumable: true, oneTime: true, price: { googleplay: '$0.99', myket: '۲۹٬۰۰۰ تومان', web: '۲۹٬۰۰۰ تومان' } },
-  { id: 'rune_pack', name: 'Rune Pack', nameFa: 'بسته رون', consumable: true, oneTime: true, price: { googleplay: '$1.99', myket: '۵۹٬۰۰۰ تومان', web: '۵۹٬۰۰۰ تومان' } },
-  { id: 'veteran_pack', name: 'Veteran Pack', nameFa: 'بسته کهنه‌کار', consumable: true, oneTime: true, price: { googleplay: '$4.99', myket: '۱۴۹٬۰۰۰ تومان', web: '۱۴۹٬۰۰۰ تومان' } },
+  { id: 'vip_month', name: 'VIP – 30 days', nameFa: 'VIP – ۳۰ روز', consumable: true, badge: 'VIP', badgeFa: 'VIP', price: { googleplay: '$2.99', myket: '۳۹٬۰۰۰ تومان', web: '۳۹٬۰۰۰ تومان' } },
+  { id: 'comeback_pack', name: 'Comeback Pack', nameFa: 'بسته بازگشت', consumable: true, oneTime: true, price: { googleplay: '$0.99', myket: '۱۹٬۰۰۰ تومان', web: '۱۹٬۰۰۰ تومان' } },
+  { id: 'rune_pack', name: 'Rune Pack', nameFa: 'بسته رون', consumable: true, oneTime: true, price: { googleplay: '$1.99', myket: '۲۹٬۰۰۰ تومان', web: '۲۹٬۰۰۰ تومان' } },
+  { id: 'veteran_pack', name: 'Veteran Pack', nameFa: 'بسته کهنه‌کار', consumable: true, oneTime: true, price: { googleplay: '$4.99', myket: '۶۹٬۰۰۰ تومان', web: '۶۹٬۰۰۰ تومان' } },
 ];
 
 export interface ShopItem {
